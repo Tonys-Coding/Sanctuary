@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&display=swap');
+@import "tailwindcss";
+
+:root{
+  --sanctuary-gold: #B8860B;
+  --sanctuary-gold-light: #D4AF37;
+  --sanctuary-gold-dark: #9B7506;
+  --sanctuary-black: #000000;
+  --sanctuary-white: #FFFFFF;
+  --sanctuary-gray-light: #F5F5F5;
+  --sanctuary-gray: #E5E5E5;
+}
+
+
+.god-rays {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60vh;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ray {
+  position: absolute;
+  bottom: -100x;
+  left: 50%;
+  width: 200px;
+  height: 100vh;
+  background: linear-gradient(to top, rgba(255, 215, 0, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
+  transform-origin: bottom center;
+  filter: blur(20px);
+  animation: rayAnimation 4s linear infinite;
+}
+
+.clouds {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 300px;
+  background: radial-gradient(ellipse at bottom, rgba(255, 255, 255, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+  filter: blur(40px);
+  z-index: 1;
+}
+
+.smooth-shadow {
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, .37);
+}
+
+.bg-celestial {
+ background: linear-gradient(to bottom, 
+    #FFFFFF 0%, 
+    #F8F8F8 30%, 
+    #E8E8E8 60%, 
+    #1a1a1a 100%
+  );
+}
+
+.btn-gold{
+  background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%);
+  color: white;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-gold:hover{
+  background: linear-gradient(135deg, #B8860B 0%, #9B7506 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+}
