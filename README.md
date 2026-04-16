@@ -34,7 +34,7 @@ journals to track everything down. No computers, no software, just a pen and a j
 <br>
 <br>
 
-<h1 align="center">  Tech Stack  </h1>
+<h1 align="left">  Tech Stack  </h1>
 
 ## Front-End
 | Technology | Purpose |
@@ -80,6 +80,9 @@ Sanctuary/
 - TypeScript: 97.4%
 - CSS: 1.7%
 - Other: 0.9%
+
+<br>
+<br>
 
 # Getting Started
 
