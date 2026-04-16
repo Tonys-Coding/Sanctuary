@@ -26,8 +26,7 @@ journals to track everything down. No computers, no software, just a pen and a j
 
 <p align="center">As an upcoming software engineer whose passion is web development, I saw this as my perfect opportunity to make a real-world problem solving website for their convenience. </p>
 
-<p align="center">Instead of having to track down every congregation member, calculate their offering total, track dates, and stress about a secure place to hide the journal, a website can do all of that and much more for the
-Treasury department at my church. </p>
+<p align="center">Instead of having to track down every congregation member, calculate their offering total, track dates, and stress about a secure place to hide the journal, a website can do all of that instantly. This inspired me to create a full-stack web application for the Treasury department at my church. </p>
 
 <p align="center">Sanctuary was built to solve all these problems. </p>
 
@@ -55,6 +54,32 @@ Treasury department at my church. </p>
 | Multer | File upload handling |
 | JWT | Authentication tokens |
 
+## Project Structure
+
+```
+Sanctuary/
+├── backend/
+│   ├── src/
+│   │   ├── controllers/     # Route handler logic
+│   │   ├── routes/          # Express route definitions
+│   │   ├── middleware/       # Auth and upload middleware
+│   │   └── models/          # Database query functions
+│   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── pages/           # Top-level route pages
+│   │   ├── components/      # Reusable UI components
+│   │   ├── contexts/        # React context providers
+│   │   └── utils/           # Helper functions
+│   └── package.json
+└── README.md
+```
+
+## Languages
+
+- TypeScript: 97.4%
+- CSS: 1.7%
+- Other: 0.9%
 
 # Getting Started
 
@@ -102,15 +127,5 @@ The website will be running at `http://localhost:5173`, the API will be running 
 
 
 
-
 ## Author 
 Anthony Salto: [@Tonys-Coding](https://github.com/Tonys-Coding)
-
-
-
-
-
-
-
-
-
