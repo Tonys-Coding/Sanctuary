@@ -50,7 +50,23 @@ These turn on as soon as a key is present and stay hidden until then:
 - There is **one role**: anyone in the church can see and change everything. Data from different churches is completely separated.
 - Password reset works by e-mail with a link that expires after one hour. Using it signs the account out everywhere else.
 
-## Getting started
+## Try it in your browser (GitHub Codespaces)
+
+You can run Sanctuary without installing anything on your computer:
+
+1. On the repository page on GitHub, click **Code → Codespaces → Create codespace** (pick the branch first if it isn't `main`).
+2. Wait two or three minutes while it installs everything and loads the demo church. Sanctuary then opens in a new tab on port **5173**.
+3. Sign in with `demo@sanctuary.app` / `sanctuary123`.
+
+**AI and e-mail:** add `GEMINI_API_KEY` (and, optionally, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`) as Codespaces secrets at <https://github.com/settings/codespaces>, give them access to this repository, and restart the codespace. **Code → Codespaces → ⋯ → New with options** also asks for them. Keys saved this way never end up in the repository.
+
+**Good to know:**
+- The database keeps its data while you stop and start the codespace. Deleting the codespace deletes the data.
+- A codespace stops itself after 30 idle minutes, and personal accounts include a monthly allowance of free hours.
+- Server logs are in `/tmp/sanctuary-api.log` and `/tmp/sanctuary-web.log`. If the app ever stops, run `bash .devcontainer/start.sh` in the terminal.
+- This is a workspace for trying and developing Sanctuary, not hosting for the church team. For that, see *Running in production* below.
+
+## Getting started (on your own computer)
 
 Requirements: **Node.js 20+** and **PostgreSQL 14+**.
 

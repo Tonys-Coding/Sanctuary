@@ -1,0 +1,37 @@
+{
+  "name": "Sanctuary",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "shutdownAction": "stopCompose",
+
+  // Codespaces asks for these when you create a codespace with "New with options",
+  // and passes the ones you save as secrets into the app. All are optional.
+  "secrets": {
+    "GEMINI_API_KEY": {
+      "description": "Clave de Google Gemini para las funciones de IA / Google Gemini key for the AI features",
+      "documentationUrl": "https://aistudio.google.com/apikey"
+    },
+    "SMTP_HOST": { "description": "Servidor de correo (SMTP), p. ej. smtp.gmail.com" },
+    "SMTP_USER": { "description": "Usuario del correo SMTP" },
+    "SMTP_PASS": { "description": "Contraseña del correo SMTP (en Gmail, una contraseña de aplicación)" }
+  },
+
+  "forwardPorts": [5173, 5001],
+  "portsAttributes": {
+    "5173": { "label": "Sanctuary", "onAutoForward": "openBrowser" },
+    "5001": { "label": "API", "onAutoForward": "silent" }
+  },
+
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/start.sh",
+
+  "customizations": {
+    "codespaces": {
+      "openFiles": ["README.md"]
+    },
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "bradlc.vscode-tailwindcss"]
+    }
+  }
+}
