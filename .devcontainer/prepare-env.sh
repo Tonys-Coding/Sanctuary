@@ -8,12 +8,14 @@ CODESPACE_DB="postgresql://sanctuary:sanctuary@localhost:5432/sanctuary"
 
 if [ ! -f .env ]; then
   cp .env.example .env
+  touch /tmp/sanctuary-env-changed
   echo "▸ Se creó backend/.env"
 fi
 
 # Replace placeholder values copied from .env.example. Real values someone typed in are left alone.
 set_var() { # name, value
   if grep -q "^$1=" .env; then sed -i "s#^$1=.*#$1=$2#" .env; else echo "$1=$2" >> .env; fi
+  touch /tmp/sanctuary-env-changed   # tells start.sh to restart a running API
 }
 current() { grep -m1 "^$1=" .env | cut -d= -f2- || true; }
 
