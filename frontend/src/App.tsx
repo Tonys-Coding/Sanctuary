@@ -1,63 +1,58 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './contexts/AuthContext';
-import Layout from './components/Layout'; 
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import GiversPage from './pages/GiversPage';
-import OfferingsPage from './pages/Offeringspage';
-import DashboardPage from './pages/DashboardPage';
+import { lazy } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { useApp } from './lib/app'
+import Layout, { Logo } from './components/Layout'
+import { OfferingFormProvider } from './components/OfferingForm'
+import { ForgotPage, LoginPage, RegisterPage, ResetPage } from './pages/Auth'
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Offerings = lazy(() => import('./pages/Offerings'))
+const Batches = lazy(() => import('./pages/Batches'))
+const BatchDetail = lazy(() => import('./pages/BatchDetail'))
+const Members = lazy(() => import('./pages/Members'))
+const MemberDetail = lazy(() => import('./pages/MemberDetail'))
+const Reports = lazy(() => import('./pages/Reports'))
+const Taxes = lazy(() => import('./pages/Taxes'))
+const Goals = lazy(() => import('./pages/Goals'))
+const Assistant = lazy(() => import('./pages/Assistant'))
+const Activity = lazy(() => import('./pages/Activity'))
+const SettingsPage = lazy(() => import('./pages/Settings'))
 
-import './App.css'
-
-// Protected route component
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+export default function App() {
+  const { session, loading } = useApp()
+  if (loading) {
+    return <div className="min-h-dvh grid place-items-center"><Logo size={72} className="animate-[pulse-soft_1.4s_ease-in-out_infinite]" /></div>
   }
-
-  return user ? <>{children}</> : <Navigate to="/login" />;
-};
-
-function App() {
+  if (!session) {
+    return (
+      <Routes>
+        <Route path="/entrar" element={<LoginPage />} />
+        <Route path="/registro" element={<RegisterPage />} />
+        <Route path="/recuperar" element={<ForgotPage />} />
+        <Route path="/restablecer" element={<ResetPage />} />
+        <Route path="*" element={<Navigate to="/entrar" replace />} />
+      </Routes>
+    )
+  }
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route 
-        path="/dashboard" 
-        element={
-        <ProtectedRoute>
-          <Layout>
-          <DashboardPage />
-         </Layout>
-        </ProtectedRoute>
-      } 
-      />
-       <Route 
-       path="/givers"
-        element={
-          <ProtectedRoute>
-            <Layout>
-            <GiversPage />
-           </Layout>
-          </ProtectedRoute>
-        } 
-        />
-        <Route
-          path="/offerings"
-          element={
-            <ProtectedRoute>
-              <Layout>
-              <OfferingsPage />
-             </Layout>
-            </ProtectedRoute>
-          }
-          />
-    <Route path="/" element={<Navigate to="/dashboard" />} />
-    </Routes>
-  );
+    <OfferingFormProvider>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="ofrendas" element={<Offerings />} />
+          <Route path="conteos" element={<Batches />} />
+          <Route path="conteos/:id" element={<BatchDetail />} />
+          <Route path="miembros" element={<Members />} />
+          <Route path="miembros/:id" element={<MemberDetail />} />
+          <Route path="informes" element={<Reports />} />
+          <Route path="impuestos" element={<Taxes />} />
+          <Route path="metas" element={<Goals />} />
+          <Route path="asistente" element={<Assistant />} />
+          <Route path="actividad" element={<Activity />} />
+          <Route path="configuracion" element={<SettingsPage />} />
+        </Route>
+        <Route path="/restablecer" element={<ResetPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </OfferingFormProvider>
+  )
 }
-
-export default App;

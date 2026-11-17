@@ -1,19 +1,26 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { AuthProvider } from './contexts/AuthContext'
-import App from './App'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
+import App from './App'
+import { AppProvider } from './lib/app'
+import { FeedbackProvider } from './components/ui'
 
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false } },
+})
 
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-    <AuthProvider>
-      <App />
-      </AuthProvider>
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AppProvider>
+          <FeedbackProvider>
+            <App />
+          </FeedbackProvider>
+        </AppProvider>
       </BrowserRouter>
-  </React.StrictMode>
-);
-
+    </QueryClientProvider>
+  </StrictMode>,
+)

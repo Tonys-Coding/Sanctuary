@@ -1,10 +1,23 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/brand/logo.svg" />
+    <link rel="apple-touch-icon" href="/brand/logo-180.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <meta name="theme-color" content="#1c1814" />
+    <title>Sanctuary · Tesorería de la iglesia</title>
+    <script>
+      // Apply the saved theme before first paint so the page never flashes the wrong colours.
+      (function () {
+        try {
+          var t = localStorage.getItem('sanctuary.theme') || 'system';
+          var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          document.documentElement.lang = localStorage.getItem('sanctuary.lang') || 'es';
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

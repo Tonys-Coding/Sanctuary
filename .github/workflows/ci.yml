@@ -2,44 +2,53 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  typecheck:
-    name: TypeScript check (backend + frontend)
+  backend:
+    name: Backend (typecheck + API tests)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x]
-
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sanctuary
+          POSTGRES_PASSWORD: sanctuary
+          POSTGRES_DB: sanctuary_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sanctuary" --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+        env:
+          TEST_DATABASE_URL: postgresql://sanctuary:sanctuary@localhost:5432/sanctuary_test
 
-      - name: Install backend dependencies
-        working-directory: backend
-        run: |
-          npm ci
-
-      - name: TypeScript check - backend
-        working-directory: backend
-        run: |
-          npx tsc -p tsconfig.json --noEmit
-
-      - name: Install frontend dependencies
+  frontend:
+    name: Frontend (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
         working-directory: frontend
-        run: |
-          npm ci
-
-      - name: TypeScript check - frontend
-        working-directory: frontend
-        run: |
-          npx tsc -p tsconfig.json --noEmit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

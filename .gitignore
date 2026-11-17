@@ -23,3 +23,5 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+# Sanctuary 2: uploaded photos and logos live outside git
+backend/uploads/
