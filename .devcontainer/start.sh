@@ -5,10 +5,12 @@
 # Logs: /tmp/sanctuary-api.log and /tmp/sanctuary-web.log
 cd "$(dirname "$0")/.."
 
-# If the first-time setup never finished, do it now.
-if [ ! -d backend/node_modules ] || [ ! -d frontend/node_modules ] || [ ! -f backend/.env ]; then
+# If the first-time setup never finished, do it now; otherwise just check .env and the database.
+if [ ! -d backend/node_modules ] || [ ! -d frontend/node_modules ]; then
   echo "▸ La instalación inicial no se completó; ejecutándola ahora…"
   bash .devcontainer/setup.sh || { echo "✖ La instalación falló. Revisa los mensajes de arriba."; exit 1; }
+else
+  bash .devcontainer/prepare-env.sh || exit 1
 fi
 
 answers() { curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$1$2"; }
