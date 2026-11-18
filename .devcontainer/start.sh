@@ -103,7 +103,9 @@ if [ "$FAILED" = 0 ]; then
   if [ -n "${CODESPACE_NAME:-}" ] && [ -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]; then
     echo "  Abre Sanctuary aquí (Ctrl/Cmd + clic):"
     echo "    https://${CODESPACE_NAME}-5173.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
-    echo "  Si no abre: pestaña «Ports» → «Forward a Port» → escribe 5173 → Enter → globo 🌐."
+    echo "  Si no abre o dice «page can't be found»: el codespace dejó de conectar el puerto 5173."
+    echo "    Pestaña «Ports» → clic derecho en 5173 → «Stop Forwarding Port»; luego «Add Port» → 5173 → globo 🌐."
+    echo "    (Si 5173 no aparece en la lista, solo «Add Port» → 5173.)"
   else
     echo "  Abre Sanctuary en http://localhost:5173"
   fi
