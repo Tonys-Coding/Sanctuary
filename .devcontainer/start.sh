@@ -12,6 +12,15 @@ if [ ! -d backend/node_modules ] || [ ! -d frontend/node_modules ]; then
   echo "▸ La instalación inicial no se completó; ejecutándola ahora…"
   bash .devcontainer/setup.sh || { echo "✖ La instalación falló. Revisa los mensajes de arriba."; exit 1; }
 else
+  # After a "git pull" that added packages, install them before starting.
+  for dir in backend frontend; do
+    if [ "$dir/package-lock.json" -nt "$dir/node_modules/.package-lock.json" ]; then
+      echo "▸ Instalando paquetes nuevos en $dir…"
+      (cd "$dir" && npm install --no-audit --no-fund >/dev/null) || { echo "✖ No se pudieron instalar los paquetes de $dir."; exit 1; }
+      [ "$dir" = backend ] && pkill -f "$PWD/backend/node_modules/" 2>/dev/null
+      [ "$dir" = frontend ] && pkill -f "$PWD/frontend/node_modules/.bin/vite" 2>/dev/null
+    fi
+  done
   bash .devcontainer/prepare-env.sh || exit 1
 fi
 
