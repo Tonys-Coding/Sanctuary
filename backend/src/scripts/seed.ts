@@ -46,15 +46,21 @@ async function main() {
       used.add(first + last);
       const role = i === 0 ? 'pastor' : i < 5 ? 'leader' : i > 41 ? 'visitor' : 'member';
       const status = i > 41 ? 'visitor' : i > 38 ? 'inactive' : 'active';
-      const joined = new Date(today.getFullYear() - 1 - Math.floor(rnd() * 8), Math.floor(rnd() * 12), 1 + Math.floor(rnd() * 27));
+      let joined = new Date(today.getFullYear() - 1 - Math.floor(rnd() * 8), Math.floor(rnd() * 12), 1 + Math.floor(rnd() * 27));
+      // Birthdays spread over the year, with several in the coming weeks so the dashboard has something to celebrate.
+      const soon = (k: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + k);
+      const age = 22 + Math.floor(rnd() * 55);
+      const bday = i % 6 === 0 ? soon(i % 25) : new Date(0, Math.floor(rnd() * 12), 1 + Math.floor(rnd() * 28));
+      const birth = rnd() < 0.85 ? new Date(today.getFullYear() - age, bday.getMonth(), bday.getDate()) : null;
+      if (i % 9 === 4) { const a = soon(3 + (i % 20)); joined = new Date(today.getFullYear() - 2 - (i % 9), a.getMonth(), a.getDate()); }
       const hasEmail = rnd() > 0.2, hasAddr = rnd() > 0.15;
       const mail = `${first}.${last}`.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase() + '@example.com';
       const id = (await q(
-        `INSERT INTO members (org_id, first_name, last_name, email, phone, address, city, state, postal_code, joined_date, status, church_role, envelope_number)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,'TX',$8,$9,$10,$11,$12) RETURNING id`,
+        `INSERT INTO members (org_id, first_name, last_name, email, phone, address, city, state, postal_code, joined_date, status, church_role, envelope_number, birth_date, sms_opt_in)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'TX',$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
         [org, first, `${last} ${last2}`, hasEmail ? mail : null, `(210) 555-${String(1000 + Math.floor(rnd() * 8999))}`,
           hasAddr ? `${100 + Math.floor(rnd() * 900)} ${pick(STREETS)}` : null, hasAddr ? 'San Antonio' : null, hasAddr ? '782' + String(10 + Math.floor(rnd() * 80)) : null,
-          iso(joined), status, role, role === 'visitor' ? null : String(101 + i)], c))[0].id;
+          iso(joined), status, role, role === 'visitor' ? null : String(101 + i), birth ? iso(birth) : null, rnd() < 0.7], c))[0].id;
       // A few recently-joined givers and a few who stopped giving, so the insights have something to say.
       const from = i >= 34 && i <= 36 ? new Date(today.getTime() - 40 * 864e5) : new Date(today.getFullYear() - 3, 0, 1);
       const until = i >= 30 && i <= 33 ? new Date(today.getTime() - (75 + i) * 864e5) : status === 'inactive' ? new Date(today.getTime() - 300 * 864e5) : null;

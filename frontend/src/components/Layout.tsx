@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChartColumn, ClipboardList, HandCoins, History, Landmark, LifeBuoy, LayoutDashboard, LogOut, Menu, Moon, Plus, Settings, Sparkles, Sun, Target, Users, X } from 'lucide-react'
+import { ChartColumn, ClipboardList, HandCoins, History, Landmark, LifeBuoy, MessageSquareText, LayoutDashboard, LogOut, Menu, Moon, Plus, Settings, Sparkles, Sun, Target, Users, X } from 'lucide-react'
 import { useApp } from '../lib/app'
 import { fileUrl } from '../lib/api'
 import { Avatar, Button, IconButton, Spinner, cx } from './ui'
@@ -87,6 +87,7 @@ export default function Layout() {
           <Item to="/ofrendas" icon={<HandCoins size={21} />}>{tr('Ofrendas', 'Offerings')}</Item>
           <Item to="/conteos" icon={<ClipboardList size={21} />}>{tr('Conteos', 'Counts')}</Item>
           <Item to="/miembros" icon={<Users size={21} />}>{tr('Miembros', 'Members')}</Item>
+          <Item to="/mensajes" icon={<MessageSquareText size={21} />}>{tr('Mensajes', 'Messages')}</Item>
         </Group>
         <Group label={tr('Análisis', 'Insights')}>
           <Item to="/informes" icon={<ChartColumn size={21} />}>{tr('Informes', 'Reports')}</Item>

@@ -24,6 +24,21 @@ const fakeGemini = http.createServer((req, res) => {
   });
 });
 
+// Stand-in for Twilio: accepts every number except +15550000000.
+const smsSent: { to: string; body: string; from?: string; auth?: string }[] = [];
+const fakeTwilio = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => (raw += c));
+  req.on('end', () => {
+    const f = new URLSearchParams(raw);
+    res.setHeader('content-type', 'application/json');
+    if (f.get('To') === '+15550000000') { res.statusCode = 400; return void res.end(JSON.stringify({ code: 21211, message: "The 'To' number is not a valid phone number." })); }
+    smsSent.push({ to: f.get('To')!, body: f.get('Body')!, from: f.get('From') || undefined, auth: req.headers.authorization });
+    res.statusCode = 201;
+    res.end(JSON.stringify({ sid: `SM${smsSent.length}` }));
+  });
+});
+
 let base = '';
 let server: http.Server;
 let pool: { end: () => Promise<void>; query: (sql: string) => Promise<unknown> };
@@ -31,6 +46,11 @@ const resetLinks: string[] = [];
 
 before(async () => {
   await new Promise<void>((r) => fakeGemini.listen(0, r));
+  await new Promise<void>((r) => fakeTwilio.listen(0, r));
+  process.env.TWILIO_ACCOUNT_SID = 'AC123';
+  process.env.TWILIO_AUTH_TOKEN = 'secret';
+  process.env.TWILIO_FROM = '+12105559999';
+  process.env.TWILIO_BASE_URL = `http://localhost:${(fakeTwilio.address() as AddressInfo).port}`;
   process.env.DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://sanctuary:sanctuary@localhost:5432/sanctuary_test';
   process.env.GEMINI_API_KEY = 'test-key';
   process.env.GEMINI_BASE_URL = `http://localhost:${(fakeGemini.address() as AddressInfo).port}`;
@@ -53,6 +73,7 @@ before(async () => {
 after(async () => {
   server.close();
   fakeGemini.close();
+  fakeTwilio.close();
   await pool.end();
 });
 
@@ -249,4 +270,73 @@ test('requests from other websites are refused, even behind proxies that rewrite
   assert.equal(await login({ origin: 'https://other-5173.app.github.dev', 'sec-fetch-site': 'same-site' }), 403);
   // Browsers without Sec-Fetch-Site: Origin must match the server's own address.
   assert.equal(await login({ origin: 'https://evil.example' }), 403);
+});
+
+test('text messages: consent, phone clean-up, sending, failures and scheduling', async () => {
+  const mk = async (first: string, phone: string | null, sms_opt_in: boolean) => (await a.post('/members', { first_name: first, last_name: 'Prueba', phone, sms_opt_in })).body.id as string;
+  const yes = await mk('Rosa', '(210) 555-0142', true);
+  const no = await mk('Juan', '(210) 555-0143', false);
+  const nophone = await mk('Lola', null, true);
+  const bad = await mk('Malo', '555 000 0000', true);
+
+  const r = (await a.post('/messages', { memberIds: [yes, no, nophone, bad], message: 'Hola {nombre}, el culto empieza a las 10.' })).body;
+  assert.equal(r.queued, 2);
+  assert.equal(r.sent, 1);
+  assert.equal(r.failed, 1);
+  assert.deepEqual(r.skipped.map((x: any) => x.reason).sort(), ['no_consent', 'no_phone']);
+  assert.deepEqual(smsSent[0], { to: '+12105550142', body: 'Hola Rosa, el culto empieza a las 10.', from: '+12105559999', auth: `Basic ${Buffer.from('AC123:secret').toString('base64')}` });
+  const log = (await a.get('/messages')).body.messages;
+  assert.match(log.find((m: any) => m.status === 'failed').error, /not a valid phone number/);
+  // Other churches can neither text these members nor see the log.
+  assert.equal((await b.post('/messages', { memberIds: [yes], message: 'hola' })).body.queued, 0);
+  assert.equal((await b.get('/messages')).body.messages.length, 0);
+
+  // Scheduled for later: nothing goes out now; it can be cancelled.
+  const later = new Date(Date.now() + 3600e3).toISOString();
+  const s = (await a.post('/messages', { memberIds: [yes], message: 'Recordatorio', sendAt: later, kind: 'reminder' })).body;
+  assert.equal(s.scheduled, 1);
+  assert.equal(smsSent.length, 1);
+  const pending = (await a.get('/messages')).body.messages.find((m: any) => m.status === 'scheduled');
+  assert.equal((await b.del(`/messages/${pending.id}`)).status, 404);
+  assert.equal((await a.del(`/messages/${pending.id}`)).status, 200);
+  // A send to several people is cancelled as one.
+  const group = (await a.post('/messages', { memberIds: [yes, bad], message: 'Grupo', sendAt: later })).body;
+  assert.equal(group.scheduled, 2);
+  const batch = (await a.get('/messages')).body.messages.find((m: any) => m.body === 'Grupo').batch_id;
+  assert.equal((await b.del(`/messages/batch/${batch}`)).status, 404);
+  assert.equal((await a.del(`/messages/batch/${batch}`)).body.canceled, 2);
+
+  // A scheduled text whose time has come is sent by the background loop.
+  const { sendDue, normalizePhone, segments } = await import('../lib/sms.js');
+  await pool.query(`INSERT INTO sanctuary.sms_messages (org_id, member_id, to_phone, body, send_at)
+                    SELECT org_id, id, '+12105550142', 'Ya es hora', now() - interval '1 minute' FROM sanctuary.members WHERE id = '${yes}'`);
+  assert.equal(await sendDue(), 1);
+  assert.equal(smsSent[smsSent.length - 1].body, 'Ya es hora');
+
+  assert.equal(normalizePhone('+52 55 1234 5678'), '+525512345678');
+  assert.equal(normalizePhone('1-210-555-0142'), '+12105550142');
+  assert.equal(normalizePhone('12345'), null);
+  assert.equal(segments('Hola'.repeat(40)), 1);        // 160 plain characters: one message
+  assert.equal(segments('á' + 'a'.repeat(70)), 2);      // an accent switches to the 70-character alphabet
+});
+
+test('birthday greetings and upcoming celebrations', async () => {
+  const { queueBirthdays, sendDue } = await import('../lib/sms.js');
+  const { upcomingCelebrations } = await import('../lib/analytics.js');
+  const id = (await a.post('/members', { first_name: 'Cumple', last_name: 'Añero', phone: '2105550199', sms_opt_in: true, birth_date: '1980-03-14', joined_date: '2020-03-20' })).body.id;
+  await a.patch('/messages/birthday', { enabled: true, message: '¡Feliz cumpleaños, {nombre}! — {iglesia}' });
+  const before = smsSent.length;
+  assert.equal(await queueBirthdays(new Date(2031, 2, 14, 8, 0)), 0); // before 9:00 nothing happens
+  assert.equal(await queueBirthdays(new Date(2031, 2, 14, 9, 5)), 1);
+  assert.equal(await queueBirthdays(new Date(2031, 2, 14, 15, 0)), 0); // only once a day
+  await sendDue();
+  assert.equal(smsSent.length, before + 1);
+  assert.equal(smsSent[smsSent.length - 1].body, '¡Feliz cumpleaños, Cumple! — Iglesia A');
+
+  const rows = [{ id, name: 'Cumple Añero', first_name: 'Cumple', birth_date: '1980-03-14', joined_date: '2020-03-20', sms_opt_in: true, phone: 'x' },
+                { id: 'leap', name: 'Bisiesto', first_name: 'B', birth_date: '2000-02-29', joined_date: null }];
+  const soon = upcomingCelebrations(rows, '2031-03-10');
+  assert.deepEqual(soon.map((c) => [c.kind, c.in_days, c.years]), [['birthday', 4, 51], ['anniversary', 10, 11]]);
+  assert.equal(upcomingCelebrations(rows, '2031-02-27')[0].date, '2031-02-28'); // Feb 29 falls on Feb 28
+  assert.equal(upcomingCelebrations(rows, '2032-02-27')[0].date, '2032-02-29');
 });

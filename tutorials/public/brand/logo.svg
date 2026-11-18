@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="Sanctuary">
+  <defs>
+    <path id="s" d="M160 30 264 64v108c0 58-40 98-104 124C96 270 56 230 56 172V64Z"/>
+    <clipPath id="c"><use href="#s"/></clipPath>
+  </defs>
+  <g clip-path="url(#c)" stroke="#16110c" stroke-linejoin="round">
+    <g stroke-width="3.5">
+      <path fill="#f4cf52" d="M160 96 160-200 60-200Z"/>
+      <path fill="#fbe58a" d="M160 96 60-200-70-200Z"/>
+      <path fill="#eebd3f" d="M160 96-70-200-240-120Z"/>
+      <path fill="#f8d962" d="M160 96-240-120-300 10Z"/>
+      <path fill="#fbe58a" d="M160 96-300 10-300 96Z"/>
+      <path fill="#eebd3f" d="M160 96-300 96-300 190Z"/>
+      <path fill="#f8d962" d="M160 96-300 190-240 330Z"/>
+      <path fill="#e9b23a" d="M160 96-240 330-20 420Z"/>
+      <path fill="#f4cf52" d="M160 96-20 420 160 420Z"/>
+      <path fill="#fbe58a" d="M160 96 160-200 260-200Z"/>
+      <path fill="#f4cf52" d="M160 96 260-200 390-200Z"/>
+      <path fill="#f8d962" d="M160 96 390-200 560-120Z"/>
+      <path fill="#eebd3f" d="M160 96 560-120 620 10Z"/>
+      <path fill="#f8d962" d="M160 96 620 10 620 96Z"/>
+      <path fill="#fbe58a" d="M160 96 620 96 620 190Z"/>
+      <path fill="#eebd3f" d="M160 96 620 190 560 330Z"/>
+      <path fill="#f4cf52" d="M160 96 560 330 340 420Z"/>
+      <path fill="#e9b23a" d="M160 96 340 420 160 420Z"/>
+    </g>
+    <circle cx="160" cy="96" r="31" fill="#fff6c9" stroke="none"/>
+    <path fill="#fffdf6" stroke-width="5" d="M152 68h16v19h19v16h-19v27h-16v-27h-19V87h19Z"/>
+    <g stroke-width="5">
+      <path fill="#dda23c" d="M150 196h64v130h-64Z"/>
+      <path fill="#b9552b" d="M106 196h44v130h-44Z"/>
+      <path fill="none" stroke-width="4" d="M120 212v110M135 212v110"/>
+      <path fill="#c4682f" d="M98 180h124l-8 18H106Z"/>
+      <path fill="#d48d48" d="M82 150h156l-10 31H92Z"/>
+    </g>
+  </g>
+  <use href="#s" fill="none" stroke="#16110c" stroke-width="10" stroke-linejoin="round"/>
+</svg>

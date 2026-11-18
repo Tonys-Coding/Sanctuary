@@ -12,6 +12,7 @@ import type { Lang, Report, ReportColumn } from '../lib/types'
 import { Button, Card, Empty, ErrorNote, Field, PageHeader, Spinner, cx, useFeedback } from '../components/ui'
 import { MemberPicker } from '../components/MemberPicker'
 import { EmailComposer } from '../components/EmailComposer'
+import { usePdfPreview } from '../components/PdfPreview'
 
 type Type = 'summary' | 'by_member' | 'by_fund' | 'by_month' | 'by_method' | 'transactions' | 'member' | 'batches'
 
@@ -81,6 +82,7 @@ export default function Reports() {
   const { tr, lang, session } = useApp()
   const labels = useLabels()
   const { fail } = useFeedback()
+  const preview = usePdfPreview()
   const { data: funds = [] } = useFunds(true)
   const [params] = useSearchParams()
   const preset = params.get('preset')
@@ -195,7 +197,7 @@ export default function Reports() {
           ) : error ? <ErrorNote error={error} /> : !report ? <Spinner /> : (<>
             <div className="flex flex-wrap gap-2.5 mb-6 pb-5 border-b border-line no-print">
               <Button variant="primary" icon={<Printer size={18} />} onClick={() => window.print()}>{tr('Imprimir', 'Print')}</Button>
-              <Button icon={<Download size={18} />} busy={busy === 'pdf'} onClick={() => run('pdf', () => download('/reports/pdf', fileName('pdf'), { ...spec, note: shownNote || undefined }))}>{tr('Descargar PDF', 'Download PDF')}</Button>
+              <Button icon={<Download size={18} />} onClick={() => preview({ title: report.title, filename: fileName('pdf'), load: () => api.post<Blob>('/reports/pdf', { ...spec, note: shownNote || undefined }) })}>{tr('Descargar PDF', 'Download PDF')}</Button>
               <Button icon={<FileSpreadsheet size={18} />} busy={busy === 'csv'} onClick={() => run('csv', () => download('/reports/csv', fileName('csv'), spec))}>{tr('Descargar Excel', 'Download Excel')}</Button>
               <Button icon={<Mail size={18} />} onClick={() => setEmailing(true)}>{tr('Enviar por correo', 'Send by e-mail')}</Button>
               {session!.features.ai && (shownNote

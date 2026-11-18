@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useApp } from './lib/app'
 import Layout, { Logo } from './components/Layout'
 import { OfferingFormProvider } from './components/OfferingForm'
+import { PdfPreviewProvider } from './components/PdfPreview'
 import { ForgotPage, LoginPage, RegisterPage, ResetPage } from './pages/Auth'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Offerings = lazy(() => import('./pages/Offerings'))
@@ -17,6 +18,7 @@ const Assistant = lazy(() => import('./pages/Assistant'))
 const Activity = lazy(() => import('./pages/Activity'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
 const Help = lazy(() => import('./pages/Help'))
+const Messages = lazy(() => import('./pages/Messages'))
 
 export default function App() {
   const { session, loading } = useApp()
@@ -36,6 +38,7 @@ export default function App() {
   }
   return (
     <OfferingFormProvider>
+      <PdfPreviewProvider>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
@@ -51,10 +54,12 @@ export default function App() {
           <Route path="actividad" element={<Activity />} />
           <Route path="configuracion" element={<SettingsPage />} />
           <Route path="ayuda" element={<Help />} />
+          <Route path="mensajes" element={<Messages />} />
         </Route>
         <Route path="/restablecer" element={<ResetPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </PdfPreviewProvider>
     </OfferingFormProvider>
   )
 }

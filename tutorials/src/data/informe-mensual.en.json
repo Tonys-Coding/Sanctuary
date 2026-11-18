@@ -1,0 +1,53 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "image": "screens/informe-mensual/en/0.png",
+      "target": {
+        "x": 17.46875,
+        "y": 445.765625,
+        "w": 261.21875,
+        "h": 52.4375
+      }
+    },
+    {
+      "image": "screens/informe-mensual/en/1.png",
+      "target": {
+        "x": 323.375,
+        "y": 238.25,
+        "w": 354.71875,
+        "h": 107.09375
+      }
+    },
+    {
+      "image": "screens/informe-mensual/en/2.png",
+      "target": {
+        "x": 469.703125,
+        "y": 423.671875,
+        "w": 187.59375,
+        "h": 52.4375
+      }
+    },
+    {
+      "image": "screens/informe-mensual/en/3.png",
+      "target": {
+        "x": 117.9375,
+        "y": 157.109375,
+        "w": 1204.109375,
+        "h": 612
+      }
+    },
+    {
+      "image": "screens/informe-mensual/en/4.png",
+      "target": {
+        "x": 1171.8125,
+        "y": 813.796875,
+        "w": 150.234375,
+        "h": 52.4375
+      }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, ArchiveRestore, CircleCheck, Copy, DatabaseBackup, Download, Mail, Monitor, Moon, Pencil, Plus, Sparkles, Sun, Trash2, TriangleAlert, Upload } from 'lucide-react'
+import { Archive, ArchiveRestore, MessageSquareText, CircleCheck, Copy, DatabaseBackup, Download, Mail, Monitor, Moon, Pencil, Plus, Sparkles, Sun, Trash2, TriangleAlert, Upload } from 'lucide-react'
 import { api, download } from '../lib/api'
 import { useApp } from '../lib/app'
 import { fileUrl } from '../lib/api'
@@ -373,6 +373,9 @@ function SystemTab() {
           {row(<Mail size={21} />, tr('Envío de correos (SMTP)', 'Sending e-mail (SMTP)'), !!session!.features.email,
             tr('Se pueden enviar informes, constancias y enlaces para restablecer contraseñas.', 'Reports, statements and password-reset links can be sent.'),
             <>{tr('Completa', 'Fill in')} {code('SMTP_HOST')}, {code('SMTP_USER')} {tr('y', 'and')} {code('SMTP_PASS')} {tr('en', 'in')} {code('backend/.env')}. {tr('Mientras tanto, los enlaces para restablecer contraseñas aparecen en la consola del servidor.', 'Until then, password-reset links are printed in the server console.')}</>)}
+          {row(<MessageSquareText size={21} />, tr('Mensajes de texto (Twilio)', 'Text messages (Twilio)'), !!session!.features.sms,
+            tr('Se pueden enviar y programar SMS, y felicitar cumpleaños automáticamente desde Mensajes.', 'Texts can be sent and scheduled, and birthdays greeted automatically, from Messages.'),
+            <>{tr('Completa', 'Fill in')} {code('TWILIO_ACCOUNT_SID')}, {code('TWILIO_AUTH_TOKEN')} {tr('y', 'and')} {code('TWILIO_FROM')} {tr('en', 'in')} {code('backend/.env')}. {tr('Los pasos están en la página Mensajes.', 'The steps are on the Messages page.')}</>)}
         </div>
       </Card>
       {!!emails.data?.length && (
@@ -403,7 +406,7 @@ export default function SettingsPage() {
       <div className="mb-6">
         <Tabs value={tab} onChange={(v) => setParams({ tab: v }, { replace: true })} options={[
           { value: 'iglesia', label: tr('Iglesia', 'Church') }, { value: 'fondos', label: tr('Fondos', 'Funds') }, { value: 'equipo', label: tr('Equipo e invitaciones', 'Team & invitations') },
-          { value: 'perfil', label: tr('Mi perfil', 'My profile') }, { value: 'datos', label: tr('Importar y respaldar', 'Import & backup') }, { value: 'sistema', label: tr('IA y correo', 'AI & e-mail') },
+          { value: 'perfil', label: tr('Mi perfil', 'My profile') }, { value: 'datos', label: tr('Importar y respaldar', 'Import & backup') }, { value: 'sistema', label: tr('IA, correo y SMS', 'AI, e-mail & SMS') },
         ]} />
       </div>
       {tab === 'iglesia' && <ChurchTab />}

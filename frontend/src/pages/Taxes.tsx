@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleCheck, Download, Landmark, Mail, Printer, TriangleAlert } from 'lucide-react'
-import { api, download } from '../lib/api'
+import { api } from '../lib/api'
 import { useApp } from '../lib/app'
-import { Avatar, Badge, Button, Card, Empty, PageHeader, Spinner, Td, Th, cx, useFeedback } from '../components/ui'
+import { Avatar, Badge, Button, Card, Empty, PageHeader, Spinner, Td, Th, cx } from '../components/ui'
 import { EmailComposer } from '../components/EmailComposer'
+import { usePdfPreview } from '../components/PdfPreview'
 
 interface Row { id: string; name: string; avatar_file: string | null; email: string | null; has_address: boolean; deductible: number; non_deductible: number; gifts: number; largest: number; needs_acknowledgment: boolean; emailed_at: string | null }
 interface Tax {
@@ -17,17 +18,18 @@ interface Tax {
 
 export default function Taxes() {
   const { tr, money, date, num, lang, session } = useApp()
-  const { fail } = useFeedback()
+  const preview = usePdfPreview()
   const qc = useQueryClient()
   const [year, setYear] = useState(() => { const n = new Date(); return n.getMonth() < 3 ? n.getFullYear() - 1 : n.getFullYear() })
   const [chosen, setChosen] = useState<Set<string>>(new Set())
   const [emailing, setEmailing] = useState(false)
-  const [busy, setBusy] = useState('')
   const { data, isPending } = useQuery({ queryKey: ['tax', year], queryFn: () => api.get<Tax>(`/reports/tax?year=${year}`) })
 
-  const run = async (name: string, fn: () => Promise<unknown>) => { setBusy(name); try { await fn() } catch (e) { fail(e) } finally { setBusy('') } }
-  const pdf = (memberId?: string, name?: string) =>
-    run(memberId || 'all', () => download(`/reports/tax/statements.pdf?year=${year}&lang=${lang}${memberId ? `&memberId=${memberId}` : ''}`, memberId ? `${name} ${year}.pdf` : tr(`constancias-${year}.pdf`, `statements-${year}.pdf`)))
+  const pdf = (memberId?: string, name?: string) => preview({
+    title: memberId ? tr(`Constancia ${year} de ${name}`, `${year} statement for ${name}`) : tr(`Todas las constancias de ${year}`, `All ${year} statements`),
+    filename: memberId ? `${name} ${year}.pdf` : tr(`constancias-${year}.pdf`, `statements-${year}.pdf`),
+    load: () => api.get<Blob>(`/reports/tax/statements.pdf?year=${year}&lang=${lang}${memberId ? `&memberId=${memberId}` : ''}`),
+  })
   const toggle = (id: string) => setChosen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
   const check = (ok: boolean, yes: string, no: string) => (
@@ -87,7 +89,7 @@ export default function Taxes() {
           <Card pad={false} title={tr(`Constancias de ${year}`, `${year} statements`)}
             hint={tr('Una por cada miembro con contribuciones deducibles. Marca las casillas para enviar solo a algunos.', 'One for each member with deductible contributions. Tick boxes to send only to some.')}
             action={<div className="flex flex-wrap gap-2.5 justify-end">
-              <Button icon={<Printer size={18} />} busy={busy === 'all'} onClick={() => pdf()} disabled={!data.members.length}>{tr('Descargar todas (PDF)', 'Download all (PDF)')}</Button>
+              <Button icon={<Printer size={18} />} onClick={() => pdf()} disabled={!data.members.length}>{tr('Descargar todas (PDF)', 'Download all (PDF)')}</Button>
               <Button variant="primary" icon={<Mail size={18} />} onClick={() => setEmailing(true)} disabled={!sendTo.length}>
                 {chosen.size ? tr(`Enviar a ${sendTo.length} elegidos`, `E-mail ${sendTo.length} selected`) : tr(`Enviar a todos (${sendTo.length})`, `E-mail all (${sendTo.length})`)}
               </Button>
@@ -116,7 +118,7 @@ export default function Taxes() {
                             {!m.has_address && <Badge tone="warn">{tr('Sin dirección', 'No address')}</Badge>}
                           </span>
                         </Td>
-                        <Td right className="!py-1 whitespace-nowrap"><Button size="sm" variant="ghost" icon={busy === m.id ? undefined : <Download size={16} />} busy={busy === m.id} onClick={() => pdf(m.id, m.name)}>PDF</Button></Td>
+                        <Td right className="!py-1 whitespace-nowrap"><Button size="sm" variant="ghost" icon={<Download size={16} />} onClick={() => pdf(m.id, m.name)}>PDF</Button></Td>
                       </tr>
                     ))}
                   </tbody>

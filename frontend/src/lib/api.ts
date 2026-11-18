@@ -45,11 +45,19 @@ export const api = {
 
 export const fileUrl = (name?: string | null) => (name ? `/api/files/${name}` : undefined)
 
+/** "Estado de Ana Chávez 2026.pdf" → "Estado-de-Ana-Chavez-2026.pdf": some browsers drop names with accents or spaces. */
+export function safeFilename(name: string) {
+  const dot = name.lastIndexOf('.')
+  const [base, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, '']
+  const clean = base.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+  return (clean || 'sanctuary') + ext.toLowerCase()
+}
+
 export function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = filename
+  a.download = safeFilename(filename)
   document.body.appendChild(a)
   a.click()
   a.remove()

@@ -6,8 +6,9 @@ import { useLabels } from '../lib/labels'
 import type { Member } from '../lib/types'
 import { Button, ErrorNote, Field, Modal, useFeedback } from './ui'
 
-const EMPTY = { first_name: '', last_name: '', email: '', phone: '', address: '', city: '', state: '', postal_code: '', birth_date: '', joined_date: '', status: 'active', church_role: 'member', envelope_number: '', notes: '' }
+const EMPTY = { first_name: '', last_name: '', email: '', phone: '', address: '', city: '', state: '', postal_code: '', birth_date: '', joined_date: '', status: 'active', church_role: 'member', envelope_number: '', notes: '', sms_opt_in: false }
 type Form = typeof EMPTY
+type TextKey = Exclude<keyof Form, 'sms_opt_in'>
 
 export function MemberForm({ open, member, onClose, onSaved }: { open: boolean; member?: Member | null; onClose: () => void; onSaved?: (m: Member) => void }) {
   const { tr } = useApp()
@@ -21,10 +22,10 @@ export function MemberForm({ open, member, onClose, onSaved }: { open: boolean; 
   useEffect(() => {
     if (!open) return
     setError(null)
-    setF(member ? (Object.fromEntries(Object.keys(EMPTY).map((k) => [k, (member as any)[k] ?? ''])) as Form) : EMPTY)
+    setF(member ? { ...(Object.fromEntries(Object.keys(EMPTY).map((k) => [k, (member as any)[k] ?? ''])) as Form), sms_opt_in: !!member.sms_opt_in } : EMPTY)
   }, [open, member])
 
-  const bind = (k: keyof Form) => ({ value: f[k], onChange: (e: { target: { value: string } }) => setF((p) => ({ ...p, [k]: e.target.value })) })
+  const bind = (k: TextKey) => ({ value: f[k], onChange: (e: { target: { value: string } }) => setF((p) => ({ ...p, [k]: e.target.value })) })
   const save = async () => {
     setBusy(true); setError(null)
     try {
@@ -54,6 +55,13 @@ export function MemberForm({ open, member, onClose, onSaved }: { open: boolean; 
           {(id) => <input id={id} className="ctl" inputMode="numeric" {...bind('envelope_number')} />}
         </Field>
         <Field label={tr('Teléfono', 'Phone')} optional>{(id) => <input id={id} className="ctl" type="tel" {...bind('phone')} />}</Field>
+        <label className="sm:col-span-2 flex items-start gap-3 rounded-[12px] border border-line p-3.5 cursor-pointer hover:bg-raised/50">
+          <input type="checkbox" className="size-5 mt-0.5 accent-[var(--accent)]" checked={f.sms_opt_in} onChange={(e) => setF((p) => ({ ...p, sms_opt_in: e.target.checked }))} />
+          <span>
+            <span className="block font-semibold">{tr('Acepta recibir mensajes de texto de la iglesia', 'Agrees to receive text messages from the church')}</span>
+            <span className="block text-muted text-[0.88rem]">{tr('Marca esta casilla solo si la persona lo autorizó. Sin esto no se le envía ningún SMS.', 'Only tick this if the person said yes. Without it, no text is ever sent to them.')}</span>
+          </span>
+        </label>
         <Field label={tr('Correo electrónico', 'E-mail')} optional hint={tr('Para enviarle sus constancias e informes.', 'Used to send statements and reports.')} className="sm:col-span-2">
           {(id) => <input id={id} className="ctl" type="email" {...bind('email')} />}
         </Field>

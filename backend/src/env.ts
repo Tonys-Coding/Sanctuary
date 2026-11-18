@@ -25,6 +25,15 @@ export const env = {
   geminiModel: (process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim(),
   // Only override to route Gemini calls through a proxy.
   geminiBaseUrl: (process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, ''),
+  // Text messages through Twilio (https://www.twilio.com). TWILIO_FROM is a Twilio phone number
+  // (+15551234567) or a Messaging Service SID (MG…). TWILIO_BASE_URL is only for tests.
+  twilio: {
+    sid: (process.env.TWILIO_ACCOUNT_SID || '').trim(),
+    token: (process.env.TWILIO_AUTH_TOKEN || '').trim(),
+    from: (process.env.TWILIO_FROM || '').trim(),
+    baseUrl: (process.env.TWILIO_BASE_URL || 'https://api.twilio.com').replace(/\/$/, ''),
+  },
+  smsCountryCode: (process.env.SMS_DEFAULT_COUNTRY_CODE || '1').replace(/\D/g, '') || '1',
   smtp: {
     host: (process.env.SMTP_HOST || '').trim(),
     port: Number(process.env.SMTP_PORT || 587),
@@ -35,4 +44,4 @@ export const env = {
   uploadDir: process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads'),
 };
 
-export const features = () => ({ ai: !!env.geminiKey, email: !!env.smtp.host });
+export const features = () => ({ ai: !!env.geminiKey, email: !!env.smtp.host, sms: !!(env.twilio.sid && env.twilio.token && env.twilio.from) });

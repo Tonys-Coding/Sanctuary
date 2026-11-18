@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Cake, FileText, Hash, Mail, MapPin, Send, Pencil, Phone, Plus, Trash2 } from 'lucide-react'
-import { api, download } from '../lib/api'
+import { ArrowLeft, Cake, FileText, Hash, Mail, MapPin, MessageSquareText, Send, Pencil, Phone, Plus, Trash2 } from 'lucide-react'
+import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useLabels } from '../lib/labels'
 import type { Member, Offering } from '../lib/types'
@@ -12,6 +12,8 @@ import { OfferingTable } from '../components/OfferingTable'
 import { useOfferingForm } from '../components/OfferingForm'
 import { MemberForm } from '../components/MemberForm'
 import { EmailComposer } from '../components/EmailComposer'
+import { SmsComposer } from '../components/SmsComposer'
+import { usePdfPreview } from '../components/PdfPreview'
 
 interface Detail {
   member: Member
@@ -25,12 +27,14 @@ export default function MemberDetail() {
   const { id } = useParams()
   const nav = useNavigate()
   const qc = useQueryClient()
-  const { tr, money, date, num } = useApp()
+  const { tr, money, date, num, session } = useApp()
   const labels = useLabels()
   const { confirm, toast, fail } = useFeedback()
   const openOffering = useOfferingForm()
+  const preview = usePdfPreview()
   const [editing, setEditing] = useState(false)
   const [emailing, setEmailing] = useState(false)
+  const [texting, setTexting] = useState(false)
   const [uploading, setUploading] = useState(false)
   const { data, isPending, error } = useQuery({ queryKey: ['member', id], queryFn: () => api.get<Detail>(`/members/${id}`) })
   const { data: offerings } = useQuery({ queryKey: ['offerings', 'member', id], queryFn: () => api.get<{ rows: Offering[]; count: number }>(`/offerings?memberId=${id}&limit=100`) })
@@ -54,7 +58,7 @@ export default function MemberDetail() {
     if (!ok) return
     try { await api.del(`/members/${m.id}`); await qc.invalidateQueries(); toast(tr('Miembro eliminado', 'Member deleted')); nav('/miembros') } catch (e) { fail(e) }
   }
-  const statement = () => download('/reports/pdf', `${m.full_name} ${year}.pdf`, { type: 'member', memberId: m.id, from: `${year}-01-01`, to: `${year}-12-31` }).catch(fail)
+  const statement = () => preview({ title: tr(`Estado de ofrendas ${year} · ${m.full_name}`, `${year} giving statement · ${m.full_name}`), filename: `${m.full_name} ${year}.pdf`, load: () => api.post<Blob>('/reports/pdf', { type: 'member', memberId: m.id, from: `${year}-01-01`, to: `${year}-12-31` }) })
   const change = s.total_last_year > 0 ? Math.round(((s.total_year - s.total_last_year) / s.total_last_year) * 1000) / 10 : null
   const contact = [
     m.phone && { icon: <Phone size={17} />, text: m.phone },
@@ -75,6 +79,7 @@ export default function MemberDetail() {
           <p className="flex flex-wrap gap-2 mt-2">
             <Badge tone={m.status === 'active' ? 'good' : m.status === 'visitor' ? 'accent' : 'neutral'}>{labels.status(m.status)}</Badge>
             <Badge>{labels.role(m.church_role)}</Badge>
+            {m.sms_opt_in && <Badge tone="accent">{tr('Acepta SMS', 'Agrees to texts')}</Badge>}
             {m.joined_date && <Badge>{tr('Desde', 'Since')} {date(m.joined_date)}</Badge>}
           </p>
           {contact.length > 0 && (
@@ -89,6 +94,7 @@ export default function MemberDetail() {
           <Button icon={<Pencil size={18} />} onClick={() => setEditing(true)}>{tr('Editar', 'Edit')}</Button>
           <Button icon={<FileText size={18} />} onClick={statement} disabled={s.count === 0}>{tr(`Estado ${year} (PDF)`, `${year} statement (PDF)`)}</Button>
           {m.email && <Button icon={<Send size={18} />} onClick={() => setEmailing(true)} disabled={s.count === 0}>{tr('Enviar por correo', 'E-mail it')}</Button>}
+          {session!.features.sms && m.sms_opt_in && m.phone && <Button icon={<MessageSquareText size={18} />} onClick={() => setTexting(true)}>{tr('Enviar SMS', 'Send a text')}</Button>}
           <Button variant="ghost" icon={<Trash2 size={18} />} onClick={remove}>{tr('Eliminar', 'Delete')}</Button>
         </div>
       </section>
@@ -115,6 +121,7 @@ export default function MemberDetail() {
         </Card>
       </>)}
       <MemberForm open={editing} member={m} onClose={() => setEditing(false)} />
+      <SmsComposer open={texting} onClose={() => setTexting(false)} preselect={[m.id]} />
       {m.email && (
         <EmailComposer open={emailing} onClose={() => setEmailing(false)} fixedRecipients={1}
           title={tr(`Enviar a ${m.first_name} su estado de ofrendas`, `E-mail ${m.first_name} their giving statement`)}

@@ -1,10 +1,38 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ClipboardList, DatabaseBackup, FileText, HandCoins, Landmark, Pencil, Sparkles, UserPlus, Users } from 'lucide-react'
+import { ChevronDown, ClipboardList, DatabaseBackup, FileText, HandCoins, Landmark, MessageSquareText, Pencil, PlayCircle, Sparkles, UserPlus, Users } from 'lucide-react'
 import { useApp } from '../lib/app'
 import { Button, Card, PageHeader, cx } from '../components/ui'
 
 interface Guide { id: string; icon: ReactNode; title: string; when: string; steps: ReactNode[]; to?: string; cta?: string }
+
+/** Short tutorial videos (made with Remotion from real screens of the app; see /tutorials). */
+function Videos() {
+  const { tr, lang } = useApp()
+  const videos = [
+    { id: 'registrar-ofrenda', title: tr('Cómo registrar una ofrenda', 'How to record an offering'), text: tr('Del botón naranja a «Guardar», en 7 pasos. 46 segundos.', 'From the orange button to “Save”, in 7 steps. 46 seconds.') },
+    { id: 'informe-mensual', title: tr('Cómo sacar el informe del mes', 'How to get the monthly report'), text: tr('Para la junta: verlo, revisarlo y descargarlo. 35 segundos.', 'For the board: open it, check it and download it. 35 seconds.') },
+  ]
+  return (
+    <section aria-labelledby="videos" className="mb-6">
+      <h2 id="videos" className="font-semibold text-[1.15rem] mb-3 flex items-center gap-2"><PlayCircle size={22} className="text-accent-ink" aria-hidden />{tr('Videotutoriales', 'Video tutorials')}</h2>
+      <div className="grid lg:grid-cols-2 gap-5">
+        {videos.map((v) => (
+          <article key={v.id} className="card overflow-hidden">
+            <video key={`${v.id}-${lang}`} controls preload="none" playsInline className="w-full aspect-video bg-ink block"
+              poster={`/tutorials/${v.id}.${lang}.jpg`} aria-label={v.title}>
+              <source src={`/tutorials/${v.id}.${lang}.mp4`} type="video/mp4" />
+            </video>
+            <div className="p-5">
+              <h3 className="font-semibold text-[1.08rem]">{v.title}</h3>
+              <p className="text-muted">{v.text}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
 
 function GuideItem({ g, open, onToggle }: { g: Guide; open: boolean; onToggle: () => void }) {
   return (
@@ -123,6 +151,17 @@ export default function Help() {
         <>{tr('Guarda el archivo en una memoria USB o en la nube (Google Drive, OneDrive…).', 'Save the file on a USB drive or in the cloud (Google Drive, OneDrive…).')}</>,
       ],
     },
+    {
+      id: 'sms', icon: <MessageSquareText size={24} />, title: tr('Enviar un mensaje de texto (SMS)', 'Send a text message (SMS)'),
+      when: tr('Recordatorios, avisos y felicitaciones de cumpleaños.', 'Reminders, notices and birthday greetings.'),
+      to: '/mensajes', cta: tr('Ir a Mensajes', 'Go to Messages'),
+      steps: [
+        <>{tr('Primero, en cada miembro, marca', 'First, on each member, tick')} {b(tr('«Acepta recibir mensajes de texto»', '“Agrees to receive text messages”'))} {tr('si la persona lo autorizó. Sin eso no se le envía nada.', 'if the person said yes. Without it, nothing is sent to them.')}</>,
+        <>{tr('Ve a', 'Go to')} {b(tr('Mensajes', 'Messages'))} {tr('y pulsa', 'and press')} {b(tr('Nuevo mensaje', 'New message'))}. {tr('Elige a quién, escribe el mensaje (o usa una plantilla) y mira cómo se verá.', 'Choose who, write the message (or use a template) and see how it will look.')}</>,
+        <>{tr('Elige', 'Choose')} {b(tr('Enviar ahora', 'Send now'))} {tr('o', 'or')} {b(tr('Programar para después', 'Schedule for later'))} {tr('con día y hora. Los programados se pueden cancelar.', 'with a day and time. Scheduled ones can be cancelled.')}</>,
+        <>{tr('En', 'On')} {b(tr('Inicio → Celebraciones', 'Home → Celebrations'))} {tr('aparece el botón', 'there is a')} {b(tr('Felicitar', 'Greet'))} {tr('junto a cada cumpleaños. También puedes activar las felicitaciones automáticas en Mensajes.', 'button next to each birthday. You can also turn on automatic greetings in Messages.')}</>,
+      ],
+    },
     ...(session?.features.ai ? [{
       id: 'ia', icon: <Sparkles size={24} />, title: tr('Preguntarle al asistente', 'Ask the assistant'),
       when: tr('Cuando quieras saber algo y no sepas dónde buscarlo.', 'When you want to know something and don’t know where to look.'),
@@ -146,6 +185,8 @@ export default function Help() {
   return (
     <>
       <PageHeader title={tr('Ayuda', 'Help')} subtitle={tr('Guías cortas, paso a paso, para lo que haces en la tesorería. Toca una para abrirla.', 'Short step-by-step guides for what you do in the treasury. Tap one to open it.')} />
+      <Videos />
+      <h2 className="font-semibold text-[1.15rem] mb-3">{tr('Guías paso a paso', 'Step-by-step guides')}</h2>
       <div className="grid 2xl:grid-cols-[minmax(0,1fr)_24rem] gap-5 items-start">
         <ul className="grid gap-3">
           {guides.map((g) => <GuideItem key={g.id} g={g} open={open === g.id} onToggle={() => setOpen(open === g.id ? null : g.id)} />)}

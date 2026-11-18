@@ -16,6 +16,7 @@ const schema = z.object({
   status: z.enum(['active', 'inactive', 'visitor']).default('active'),
   church_role: z.enum(['pastor', 'leader', 'member', 'visitor']).default('member'),
   envelope_number: text(20), notes: text(2000),
+  sms_opt_in: z.boolean().default(false),
 });
 const COLS = Object.keys(schema.shape);
 export const fullName = "trim(m.first_name || ' ' || m.last_name)";

@@ -187,3 +187,32 @@ CREATE TABLE IF NOT EXISTS ai_cache (
   created_at    timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (org_id, key)
 );
+
+-- ─── Text messages (SMS) ─────────────────────────────────────────────────────
+-- Members must agree to receive texts before any is sent to them.
+ALTER TABLE members ADD COLUMN IF NOT EXISTS sms_opt_in boolean NOT NULL DEFAULT false;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS sms_birthday_enabled boolean NOT NULL DEFAULT false;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS sms_birthday_message text;
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS sms_birthday_last_run date;
+
+-- One row per text, whether it went out right away, is waiting for its time, or failed.
+CREATE TABLE IF NOT EXISTS sms_messages (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  member_id     uuid REFERENCES members(id) ON DELETE SET NULL,
+  to_phone      text NOT NULL,
+  body          text NOT NULL,
+  kind          text NOT NULL DEFAULT 'manual' CHECK (kind IN ('manual','reminder','birthday')),
+  status        text NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','sending','sent','failed','canceled')),
+  send_at       timestamptz NOT NULL DEFAULT now(),
+  sent_at       timestamptz,
+  provider_id   text,
+  error         text,
+  created_by    uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS sms_due_idx ON sms_messages(status, send_at);
+CREATE INDEX IF NOT EXISTS sms_org_idx ON sms_messages(org_id, created_at DESC);
+-- Texts sent together (one "Nuevo mensaje" to many people) share a batch, so they are listed and cancelled as one.
+ALTER TABLE sms_messages ADD COLUMN IF NOT EXISTS batch_id uuid;
+CREATE INDEX IF NOT EXISTS sms_batch_idx ON sms_messages(batch_id);

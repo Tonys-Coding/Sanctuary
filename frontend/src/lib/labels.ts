@@ -57,6 +57,7 @@ export function useErrorText() {
       ai_unreachable: tr('No se pudo conectar con el servicio de IA.', 'Could not reach the AI service.'),
       ai_failed: tr('El asistente no pudo responder esta vez. Inténtalo de nuevo.', 'The assistant could not answer this time. Please try again.'),
       ai_empty: tr('El asistente no devolvió una respuesta. Inténtalo de nuevo.', 'The assistant returned no answer. Please try again.'),
+      sms_not_configured: tr('Los mensajes de texto aún no están activados. Faltan los datos de Twilio en el servidor.', 'Text messages are not turned on yet. The Twilio details are missing on the server.'),
       ai_no_data: tr('Todavía no hay ofrendas registradas para resumir.', 'There are no offerings recorded yet to summarise.'),
     }
     return map[code] || map.server_error

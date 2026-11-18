@@ -23,7 +23,7 @@ The app is in **Spanish first**, with English one click away. It has light and d
 
 | Area | What you get |
 |---|---|
-| **Inicio** (dashboard) | One-click shortcuts for the four most common jobs; headline figures with trend lines; this year vs last by month or as a running total; fund donut; the last 12 weeks; funds month by month; who gives (regular, occasional, new); payment methods; goal rings; top givers and giving by year; latest offerings; and a *Novedades* feed that points out trends: 30-day change, best month, new givers, and regular givers who have stopped. |
+| **Inicio** (dashboard) | One-click shortcuts for the four most common jobs; headline figures with trend lines; this year vs last by month or as a running total; fund donut; the last 12 weeks; funds month by month; who gives (regular, occasional, new); payment methods; goal rings; top givers and giving by year; upcoming birthdays and membership anniversaries with a one-click greeting; latest offerings; and a *Novedades* feed that points out trends: 30-day change, best month, new givers, and regular givers who have stopped. |
 | **Ofrendas** | Every tithe and offering grouped by day with daily subtotals, with search, period, fund and method filters, and an Excel (CSV) download. Recording one takes a name (or envelope number), an amount and Enter. The form shows the person's last gift, warns about future dates and possible duplicates, and accepts amounts typed as `1,250.50` or `45,50`. Deleting shows an **Undo** button. |
 | **Conteos** | One count sheet per service: rapid entry, a cash check by bill and coin that tells you whether the drawer balances, closing and reopening, and a printable sheet with signature lines for the two counters. |
 | **Miembros** | Member cards (or a compact list) with photo, contact details, this year's total, last gift, a 12-month trend and "gave in X of 12 months", plus a warning when the e-mail or address needed for statements is missing. Sort and filter by status, "no gift in 60+ days" or "missing details". Each profile shows the year's total, the change from last year, the last 12 months, a breakdown by fund and the full history, and can e-mail the person their statement. A member search sits in the top bar on every page. |
@@ -31,8 +31,9 @@ The app is in **Spanish first**, with English one click away. It has light and d
 | **Impuestos** | Year-end contribution statements: a checklist of what each statement needs, IRS guidance in plain words ($250 rule, January 31, required wording), flags for missing addresses or e-mails, a PDF per member or all at once, and e-mail delivery with a record of what was sent. Funds such as food sales can be marked as not deductible. |
 | **Metas** | Campaigns such as "new roof" tied to a fund and dates. Progress is calculated automatically. |
 | **Asistente** (AI) | Ask questions in your own words ("which members haven't given in two months?") and get answers with real numbers from your data. |
+| **Mensajes** (SMS) | Text members through Twilio: choose recipients, use a template, see a preview and the SMS count, then send now or schedule a day and time (scheduled texts can be cancelled). Automatic birthday greetings go out every morning from 9:00. Texts only go to members marked as having agreed to receive them. |
 | **Actividad** | A log of who did what. Everyone on the team can change everything, so every change is recorded. |
-| **Ayuda** | Short step-by-step guides for each real task (Sunday count, fixing a mistake, the board report, tax statements, inviting a helper, backups), each with a button to the right screen, plus a glossary. |
+| **Ayuda** | Two video tutorials (recording an offering, the monthly report) in Spanish and English, plus short step-by-step guides for each real task (Sunday count, fixing a mistake, the board report, tax statements, inviting a helper, backups), each with a button to the right screen, plus a glossary. |
 | **Configuración** | Church details and logo, funds, team and invitation codes, your profile (photo, language, theme, password), CSV import with Spanish or English column names, and backups. |
 
 ### AI features (Google Gemini)
@@ -109,6 +110,14 @@ npm run dev    # http://localhost:5173
 
 The model defaults to `gemini-3.8-flash` and can be changed with `GEMINI_MODEL`. If the key or model is wrong, the app shows a clear message rather than failing silently.
 
+### Turning on text messages (optional)
+
+1. Create a [Twilio](https://www.twilio.com) account and buy a phone number. US numbers must be registered for messaging (A2P 10DLC), which takes a few days. Each text costs about one cent.
+2. In `backend/.env`, set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM` (the number, or a Messaging Service SID starting with `MG`). `SMS_DEFAULT_COUNTRY_CODE` (default `1`) is used for numbers typed without `+`.
+3. Restart the backend. Mark **"Acepta recibir mensajes de texto"** on each member who agreed. Replies of STOP are handled by Twilio.
+
+Scheduled texts and birthday greetings are sent by the backend once a minute, so it must keep running. Birthday greetings use the server's time zone (set `TZ`, for example `TZ=America/Chicago`).
+
 ### Turning on e-mail
 
 Fill in `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `SMTP_FROM` in `backend/.env`. Gmail, Outlook, Brevo and most providers work. Until then, password-reset links are printed in the backend console, and e-mail buttons explain that e-mail isn't configured.
@@ -133,13 +142,26 @@ cd ../backend && npm run build && NODE_ENV=production npm start
 
 The backend serves the built frontend, so there is only one process to run. Set `APP_URL` to the public address so links in e-mails work. Uploaded photos are stored in `backend/uploads/` (or `UPLOAD_DIR`), so back that folder up along with the database.
 
+## Tutorial videos
+
+The videos on the Ayuda page are built with [Remotion](https://www.remotion.dev) from real screenshots of the app. They live in `tutorials/`:
+
+```bash
+cd tutorials && npm install
+npm run capture   # with the demo church running: takes the screenshots, in Spanish and English
+npm run render    # writes frontend/public/tutorials/*.mp4 and poster images
+npm run studio    # optional: preview and tweak the videos in the browser
+```
+
+Captions are in `tutorials/src/script.ts`. Remotion is free for non-profit organizations such as churches.
+
 ## Tests
 
 ```bash
 cd backend && npm test
 ```
 
-The tests run against a real PostgreSQL database (`TEST_DATABASE_URL`, which defaults to `sanctuary_test`) and a stand-in Gemini server. They cover registration and invitations, separation between churches, reports and PDFs, tax rules, counts, password reset, the AI tool-calling loop and CSV import.
+The tests run against a real PostgreSQL database (`TEST_DATABASE_URL`, which defaults to `sanctuary_test`) and a stand-in Gemini server. They cover registration and invitations, separation between churches, reports and PDFs, tax rules, counts, password reset, the AI tool-calling loop, CSV import, and text messages (consent, scheduling, birthday greetings) against a stand-in Twilio server.
 
 ## Tech stack
 

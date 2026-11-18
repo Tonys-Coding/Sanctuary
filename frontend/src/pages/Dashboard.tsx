@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Markdown from 'react-markdown'
-import { ChevronRight, ClipboardList, FileText, HandCoins, Landmark, PieChart, Plus, RefreshCw, Sparkles, Star, TrendingDown, TrendingUp, UserPlus, UserX } from 'lucide-react'
+import { Cake, ChevronRight, Church, ClipboardList, MessageSquareText, Phone, FileText, HandCoins, Landmark, PieChart, Plus, RefreshCw, Sparkles, Star, TrendingDown, TrendingUp, UserPlus, UserX } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { METHODS, useLabels, useErrorText } from '../lib/labels'
@@ -10,6 +10,7 @@ import type { Goal, Offering } from '../lib/types'
 import { Avatar, Button, Card, Delta, Empty, PageHeader, Spinner, Tabs, cx } from '../components/ui'
 import { Columns, Donut, FundStack, MonthlyChart, Ranking, Ring, Sparkline } from '../components/charts'
 import { useOfferingForm } from '../components/OfferingForm'
+import { SmsComposer } from '../components/SmsComposer'
 import { seriesColor } from '../lib/labels'
 
 interface Dash {
@@ -18,6 +19,7 @@ interface Dash {
   monthly: { month: number; total: number; previous: number; count: number; givers: number; byFund: Record<string, number> }[]
   weekly: { sunday: string; total: number; count: number }[]
   segments: { regular: number; occasional: number; new: number; regularMonths: number }
+  celebrations: Celebration[]
   byFund: { id: string; name: string; color_slot: number; total: number }[]
   byMethod: { method: string; total: number; count: number }[]
   topMembers: { id: string; name: string; avatar_file: string | null; total: number; count: number }[]
@@ -25,6 +27,57 @@ interface Dash {
   recent: Offering[]
   goals: Goal[]
   insights: { type: string; tone: 'good' | 'bad' | 'neutral'; data: any }[]
+}
+
+interface Celebration { member_id: string; name: string; first_name: string; avatar_file: string | null; kind: 'birthday' | 'anniversary'; date: string; in_days: number; years: number; can_text: boolean; phone: string | null }
+
+/** Birthdays and membership anniversaries in the next 30 days, with a quick way to send greetings. */
+function Celebrations({ items }: { items: Celebration[] }) {
+  const { tr, lang, session } = useApp()
+  const [greet, setGreet] = useState<Celebration | null>(null)
+  const when = (c: Celebration) => {
+    if (c.in_days === 0) return tr('¡Hoy!', 'Today!')
+    if (c.in_days === 1) return tr('Mañana', 'Tomorrow')
+    const [y, m, d] = c.date.split('-').map(Number)
+    const day = new Date(y, m - 1, d).toLocaleDateString(lang === 'es' ? 'es-US' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' }).replace('.', '')
+    return `${tr(`En ${c.in_days} días`, `In ${c.in_days} days`)} · ${day}`
+  }
+  const church = session!.org.name
+  const message = (c: Celebration) => c.kind === 'birthday'
+    ? tr(`¡Feliz cumpleaños, {nombre}! Toda la familia de ${church} da gracias a Dios por tu vida.`, `Happy birthday, {name}! Everyone at ${church} thanks God for your life.`)
+    : tr(`¡Hola {nombre}! Hoy cumples ${c.years} ${c.years === 1 ? 'año' : 'años'} con nosotros en ${church}. ¡Gracias por ser parte de esta familia!`, `Hi {name}! Today marks ${c.years} ${c.years === 1 ? 'year' : 'years'} with us at ${church}. Thank you for being part of this family!`)
+  return (
+    <Card title={<span className="flex items-center gap-2"><Cake size={19} className="text-accent-ink" aria-hidden />{tr('Celebraciones', 'Celebrations')}</span>}
+      hint={tr('Cumpleaños y aniversarios en la iglesia de los próximos 30 días.', 'Birthdays and church anniversaries in the next 30 days.')}>
+      {items.length === 0 ? (
+        <p className="text-muted">{tr('No hay cumpleaños ni aniversarios en los próximos 30 días. Añade las fechas en el perfil de cada miembro.', 'No birthdays or anniversaries in the next 30 days. Add the dates on each member’s profile.')}</p>
+      ) : (
+        <ul className="grid gap-1 -mx-2 max-h-[26rem] overflow-y-auto">
+          {items.map((c) => (
+            <li key={`${c.member_id}-${c.kind}`} className={cx('flex items-center gap-3 px-2 py-2 rounded-xl', c.in_days === 0 && 'bg-accent-soft/60')}>
+              <span className="relative shrink-0">
+                <Avatar name={c.name} file={c.avatar_file} size={42} />
+                <span className="absolute -bottom-1 -right-1 size-6 rounded-full grid place-items-center bg-surface border border-line text-accent-ink" aria-hidden>
+                  {c.kind === 'birthday' ? <Cake size={13} /> : <Church size={13} />}
+                </span>
+              </span>
+              <div className="flex-1 min-w-0">
+                <Link to={`/miembros/${c.member_id}`} className="block font-medium truncate hover:underline underline-offset-4">{c.name}</Link>
+                <p className="text-muted text-[0.86rem]">
+                  {c.kind === 'birthday' ? tr('Cumpleaños', 'Birthday') : tr(`${c.years} ${c.years === 1 ? 'año' : 'años'} en la iglesia`, `${c.years} ${c.years === 1 ? 'year' : 'years'} at church`)}
+                  {' · '}<span className={cx(c.in_days === 0 && 'text-accent-ink font-semibold')}>{when(c)}</span>
+                </p>
+              </div>
+              {session!.features.sms && c.can_text
+                ? <Button size="sm" variant={c.in_days === 0 ? 'primary' : 'secondary'} icon={<MessageSquareText size={16} />} onClick={() => setGreet(c)}>{tr('Felicitar', 'Greet')}</Button>
+                : c.phone ? <a href={`tel:${c.phone}`} className="shrink-0"><Button size="sm" variant="ghost" icon={<Phone size={16} />}>{tr('Llamar', 'Call')}</Button></a> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+      <SmsComposer open={!!greet} onClose={() => setGreet(null)} preselect={greet ? [greet.member_id] : []} template={greet ? message(greet) : ''} kind="birthday" />
+    </Card>
+  )
 }
 
 function Stat({ label, value, note, badge, spark, sparkLabel }: { label: string; value: string; note?: string; badge?: ReactNode; spark?: number[]; sparkLabel?: string }) {
@@ -270,7 +323,9 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card pad={false} title={tr('Últimas ofrendas', 'Latest offerings')}
+      <div className="grid xl:grid-cols-3 gap-5 items-start">
+      <Celebrations items={d.celebrations} />
+      <Card pad={false} className="xl:col-span-2" title={tr('Últimas ofrendas', 'Latest offerings')}
         action={<Link to="/ofrendas" className="text-accent-ink font-semibold hover:underline underline-offset-4">{tr('Ver todas', 'See all')}</Link>}>
         <ul className="mt-3 border-t border-line grid lg:grid-cols-2 lg:[&>li:nth-child(odd)]:border-r [&>li]:border-line [&>li]:border-b">
           {d.recent.map((o) => (
@@ -290,6 +345,7 @@ export default function Dashboard() {
           ))}
         </ul>
       </Card>
+      </div>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { createApp } from './app';
 import { migrate } from './db';
 import { env, features } from './env';
+import { startSmsScheduler } from './lib/sms';
 
 async function main() {
   try {
@@ -14,7 +15,9 @@ async function main() {
     const f = features();
     console.log(`\n  Sanctuary  →  http://localhost:${env.port}`);
     console.log(`  IA (Gemini): ${f.ai ? `activada · ${env.geminiModel}` : 'desactivada — añade GEMINI_API_KEY en backend/.env'}`);
-    console.log(`  Correo:      ${f.email ? 'configurado' : 'sin configurar — los enlaces de restablecimiento se mostrarán aquí'}\n`);
+    console.log(`  Correo:      ${f.email ? 'configurado' : 'sin configurar — los enlaces de restablecimiento se mostrarán aquí'}`);
+    console.log(`  SMS:         ${f.sms ? 'activado (Twilio)' : 'desactivado — añade los datos de Twilio en backend/.env'}\n`);
+    if (f.sms) startSmsScheduler();
   });
 }
 

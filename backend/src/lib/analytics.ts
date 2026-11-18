@@ -67,6 +67,12 @@ export async function dashboard(orgId: string, yearParam?: number) {
        FROM offerings o WHERE o.org_id = $1 AND member_id IS NOT NULL AND extract(year FROM date) = $2::int
        GROUP BY member_id`, p),
   ]);
+  const celebrations = upcomingCelebrations(
+    await q(`SELECT m.id, ${fullName} AS name, m.first_name, m.avatar_file, m.phone, m.email, m.sms_opt_in, m.birth_date, m.joined_date
+             FROM members m WHERE m.org_id = $1 AND m.archived_at IS NULL AND m.status <> 'inactive'
+               AND (m.birth_date IS NOT NULL OR m.joined_date IS NOT NULL)`, [orgId]),
+    now,
+  );
   const regularMonths = Math.max(1, Math.round(refMonth * 0.75));
   const segments = { regular: 0, occasional: 0, new: 0 };
   for (const g of giverRows) {
@@ -111,6 +117,43 @@ export async function dashboard(orgId: string, yearParam?: number) {
       loose: loose.total as number,
     },
     monthly, byFund, byMethod, topMembers, yearly, recent, goals, insights,
-    weekly, segments: { ...segments, regularMonths },
+    weekly, segments: { ...segments, regularMonths }, celebrations,
   };
+}
+
+/**
+ * Birthdays and membership anniversaries in the next 30 days (today included), soonest first.
+ * Feb 29 dates fall on Feb 28 in years without one.
+ */
+export function upcomingCelebrations(rows: any[], todayIso: string, days = 30) {
+  const [ty, tm, td] = todayIso.split('-').map(Number);
+  const today = Date.UTC(ty, tm - 1, td);
+  const next = (iso: string) => {
+    const [, m, d] = iso.split('-').map(Number);
+    for (const y of [ty, ty + 1]) {
+      const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+      const day = m === 2 && d === 29 && !leap ? 28 : d;
+      const t = Date.UTC(y, m - 1, day);
+      if (t >= today) return { t, y };
+    }
+    return null;
+  };
+  const out: any[] = [];
+  for (const r of rows) {
+    for (const kind of ['birthday', 'anniversary'] as const) {
+      const iso = kind === 'birthday' ? r.birth_date : r.joined_date;
+      if (!iso) continue;
+      const n = next(iso);
+      if (!n) continue;
+      const inDays = Math.round((n.t - today) / 864e5);
+      const years = n.y - Number(iso.slice(0, 4));
+      if (inDays > days || (kind === 'anniversary' && years < 1)) continue;
+      out.push({
+        member_id: r.id, name: r.name, first_name: r.first_name, avatar_file: r.avatar_file, kind,
+        date: new Date(n.t).toISOString().slice(0, 10), in_days: inDays, years,
+        can_text: !!(r.sms_opt_in && r.phone), phone: r.phone, email: r.email,
+      });
+    }
+  }
+  return out.sort((a, b) => a.in_days - b.in_days || a.name.localeCompare(b.name)).slice(0, 40);
 }

@@ -1,0 +1,71 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "image": "screens/registrar-ofrenda/en/0.png",
+      "target": {
+        "x": 1216.0625,
+        "y": 10.484375,
+        "w": 197.71875,
+        "h": 52.4375
+      }
+    },
+    {
+      "image": "screens/registrar-ofrenda/en/1.png",
+      "target": {
+        "x": 432.578125,
+        "y": 182.734375,
+        "w": 574.828125,
+        "h": 48
+      }
+    },
+    {
+      "image": "screens/registrar-ofrenda/en/2.png",
+      "target": {
+        "x": 440.125,
+        "y": 244.828125,
+        "w": 559.734375,
+        "h": 51.46875
+      }
+    },
+    {
+      "image": "screens/registrar-ofrenda/en/3.png",
+      "target": {
+        "x": 432.578125,
+        "y": 313.640625,
+        "w": 276.484375,
+        "h": 61.171875
+      }
+    },
+    {
+      "image": "screens/registrar-ofrenda/en/4.png",
+      "target": {
+        "x": 432.578125,
+        "y": 428.109375,
+        "w": 124.5625,
+        "h": 48.0625
+      }
+    },
+    {
+      "image": "screens/registrar-ofrenda/en/5.png",
+      "target": {
+        "x": 925.265625,
+        "y": 780.3125,
+        "w": 82.140625,
+        "h": 52.4375
+      }
+    },
+    {
+      "image": "screens/registrar-ofrenda/en/6.png",
+      "target": {
+        "x": 570.203125,
+        "y": 821.375,
+        "w": 299.578125,
+        "h": 56.78125
+      }
+    }
+  ]
+}

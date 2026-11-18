@@ -232,7 +232,7 @@ export function AvatarPicker({ name, file, onPick, busy, size = 104 }: { name?: 
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
 
-export function Modal({ open, onClose, title, children, footer, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
+export function Modal({ open, onClose, title, children, footer, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; wide?: boolean | 'xl' }) {
   const ref = useRef<HTMLDialogElement>(null)
   const { tr } = useApp()
   useEffect(() => {
@@ -247,7 +247,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
       ref={ref}
       onCancel={(e) => { e.preventDefault(); onClose() }}
       onMouseDown={(e) => { if (e.target === ref.current) onClose() }}
-      className={cx('rise m-auto p-0 w-[calc(100%-24px)] bg-surface border border-line rounded-[18px] shadow-card max-h-[calc(100dvh-24px)] overflow-hidden', wide ? 'max-w-3xl' : 'max-w-xl')}
+      className={cx('rise m-auto p-0 w-[calc(100%-24px)] bg-surface border border-line rounded-[18px] shadow-card max-h-[calc(100dvh-24px)] overflow-hidden', wide === 'xl' ? 'max-w-6xl' : wide ? 'max-w-3xl' : 'max-w-xl')}
     >
       <div className="flex flex-col max-h-[calc(100dvh-24px)]">
         <div className="flex items-center justify-between gap-4 pl-6 pr-3 py-3 border-b border-line">

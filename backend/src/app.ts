@@ -16,6 +16,7 @@ import goals from './routes/goals';
 import reports from './routes/reports';
 import ai from './routes/ai';
 import data from './routes/data';
+import messages from './routes/messages';
 
 export function createApp() {
   const app = express();
@@ -64,6 +65,7 @@ export function createApp() {
   api.use('/reports', reports);
   api.use('/ai', ai);
   api.use('/data', data);
+  api.use('/messages', messages);
   app.use('/api', api);
   app.use('/api', (_req, _res) => { throw new HttpError(404, 'not_found'); });
 
