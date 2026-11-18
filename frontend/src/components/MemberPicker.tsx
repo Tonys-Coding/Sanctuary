@@ -10,13 +10,14 @@ const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
  * Type-to-search member chooser. Matches by name or envelope number, ignores accents,
  * works with arrow keys + Enter, and can offer to create a member that doesn't exist yet.
  */
-export function MemberPicker({ id, value, onChange, onCreate, allowLoose = true, autoFocus }: {
+export function MemberPicker({ id, value, onChange, onCreate, allowLoose = true, autoFocus, placeholder }: {
   id?: string
   value: string | null
   onChange: (memberId: string | null) => void
   onCreate?: (name: string) => void
   allowLoose?: boolean
   autoFocus?: boolean
+  placeholder?: string
 }) {
   const { tr } = useApp()
   const { data: members = [] } = useMembers()
@@ -65,7 +66,7 @@ export function MemberPicker({ id, value, onChange, onCreate, allowLoose = true,
       <Search size={19} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" aria-hidden />
       <input
         ref={input} id={id} className="ctl !pl-11" autoComplete="off" autoFocus={autoFocus} role="combobox" aria-expanded={open} aria-autocomplete="list"
-        placeholder={allowLoose ? tr('Buscar por nombre o n.º de sobre — vacío = ofrenda suelta', 'Search by name or envelope no. — empty = loose offering') : tr('Buscar por nombre o n.º de sobre', 'Search by name or envelope no.')}
+        placeholder={placeholder ?? (allowLoose ? tr('Buscar por nombre o n.º de sobre — vacío = ofrenda suelta', 'Search by name or envelope no. — empty = loose offering') : tr('Buscar por nombre o n.º de sobre', 'Search by name or envelope no.'))}
         value={text}
         onChange={(e) => { setText(e.target.value); setOpen(true) }}
         onClick={() => setOpen(true)}

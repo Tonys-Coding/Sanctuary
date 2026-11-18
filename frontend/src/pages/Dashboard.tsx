@@ -2,20 +2,22 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Markdown from 'react-markdown'
-import { ChevronRight, HandCoins, PieChart, RefreshCw, Sparkles, Star, TrendingDown, TrendingUp, UserPlus, UserX } from 'lucide-react'
+import { ChevronRight, ClipboardList, FileText, HandCoins, Landmark, PieChart, Plus, RefreshCw, Sparkles, Star, TrendingDown, TrendingUp, UserPlus, UserX } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
-import { useLabels, useErrorText } from '../lib/labels'
+import { METHODS, useLabels, useErrorText } from '../lib/labels'
 import type { Goal, Offering } from '../lib/types'
-import { Avatar, Badge, Button, Card, Delta, Empty, PageHeader, Spinner, Tabs, cx } from '../components/ui'
-import { Breakdown, Columns, MonthlyChart, ProgressBar, Ranking } from '../components/charts'
+import { Avatar, Button, Card, Delta, Empty, PageHeader, Spinner, Tabs, cx } from '../components/ui'
+import { Columns, Donut, FundStack, MonthlyChart, Ranking, Ring, Sparkline } from '../components/charts'
 import { useOfferingForm } from '../components/OfferingForm'
 import { seriesColor } from '../lib/labels'
 
 interface Dash {
   year: number; isCurrent: boolean; ref: string; refMonth: number; years: number[]
   kpis: { total: number; totalPrevSamePeriod: number; ytdChange: number | null; thisMonth: number; prevMonth: number; count: number; average: number; givers: number; giversPrev: number; loose: number }
-  monthly: { month: number; total: number; previous: number; count: number }[]
+  monthly: { month: number; total: number; previous: number; count: number; givers: number; byFund: Record<string, number> }[]
+  weekly: { sunday: string; total: number; count: number }[]
+  segments: { regular: number; occasional: number; new: number; regularMonths: number }
   byFund: { id: string; name: string; color_slot: number; total: number }[]
   byMethod: { method: string; total: number; count: number }[]
   topMembers: { id: string; name: string; avatar_file: string | null; total: number; count: number }[]
@@ -25,15 +27,16 @@ interface Dash {
   insights: { type: string; tone: 'good' | 'bad' | 'neutral'; data: any }[]
 }
 
-function Stat({ label, value, note, badge }: { label: string; value: string; note?: string; badge?: ReactNode }) {
+function Stat({ label, value, note, badge, spark, sparkLabel }: { label: string; value: string; note?: string; badge?: ReactNode; spark?: number[]; sparkLabel?: string }) {
   return (
-    <div className="p-5 sm:p-6">
-      <p className="text-muted text-[0.93rem]">{label}</p>
+    <div className="p-5 sm:p-6 flex flex-col">
+      <p className="text-muted">{label}</p>
       <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-[1.75rem] font-bold leading-none tracking-tight">{value}</span>
+        <span className="text-[2rem] font-bold leading-none tracking-tight">{value}</span>
         {badge}
       </p>
-      {note && <p className="text-muted text-[0.87rem] mt-2">{note}</p>}
+      {note && <p className="text-muted text-[0.88rem] mt-2">{note}</p>}
+      {spark && spark.length > 1 && <div className="mt-auto pt-4"><Sparkline values={spark} height={34} label={sparkLabel} /></div>}
     </div>
   )
 }
@@ -66,7 +69,7 @@ function AiSummary({ year }: { year: number }) {
 }
 
 export default function Dashboard() {
-  const { tr, money, date, num, session } = useApp()
+  const { tr, money, date, num, session, lang } = useApp()
   const labels = useLabels()
   const openOffering = useOfferingForm()
   const [year, setYear] = useState<number | undefined>()
@@ -130,29 +133,77 @@ export default function Dashboard() {
   }
   const tones = { good: 'bg-good-soft text-good', bad: 'bg-bad-soft text-bad', neutral: 'bg-raised text-ink-soft' }
 
+  const shortDate = (iso: string) => {
+    const [y, m, dd] = iso.split('-').map(Number)
+    return new Date(y, m - 1, dd).toLocaleDateString(lang === 'es' ? 'es-US' : 'en-US', { day: 'numeric', month: 'short' }).replace('.', '')
+  }
+  const upTo = d.isCurrent ? d.refMonth : 12
+  const months = d.monthly.slice(0, upTo)
+  const weeks = d.weekly.map((w, i) => ({
+    label: i === d.weekly.length - 1 && d.isCurrent ? tr('Esta sem.', 'This wk') : shortDate(w.sunday),
+    value: w.total,
+    tip: `${tr('Semana del domingo', 'Week ending Sunday')} ${shortDate(w.sunday)} · ${tr(`${num(w.count)} ofrendas`, `${num(w.count)} gifts`)}`,
+  }))
+  const seg = d.segments
+  const actions: { icon: ReactNode; title: string; text: string; onClick?: () => void; to?: string }[] = [
+    { icon: <Plus size={24} />, title: tr('Registrar una ofrenda', 'Record an offering'), text: tr('Un sobre, una transferencia…', 'An envelope, a transfer…'), onClick: () => openOffering() },
+    { icon: <ClipboardList size={24} />, title: tr('Contar el culto de hoy', 'Count today’s service'), text: tr('Todos los sobres de una vez', 'All the envelopes at once'), to: '/conteos?nuevo=1' },
+    { icon: <FileText size={24} />, title: tr('Informe del mes pasado', 'Last month’s report'), text: tr('Listo para la junta', 'Ready for the board'), to: '/informes?preset=mes' },
+    { icon: <Landmark size={24} />, title: tr('Constancias de impuestos', 'Tax statements'), text: tr('Para cada miembro', 'For each member'), to: '/impuestos' },
+  ]
+
   return (
     <div className="grid gap-5">
       <PageHeader title={title} subtitle={`${session!.org.name} · ${d.isCurrent ? date(d.ref, 'long') : d.year}`}>{picker}</PageHeader>
 
-      {/* Headline figures, in one band rather than four separate boxes. */}
-      <section className="card grid sm:grid-cols-2 xl:grid-cols-4 divide-y sm:divide-y-0 sm:[&>*:nth-child(n+3)]:border-t xl:[&>*:nth-child(n+3)]:border-t-0 sm:[&>*:nth-child(even)]:border-l xl:[&>*+*]:border-l divide-line [&>*]:border-line -mt-2">
+      {/* The four things a treasurer does most, one click away. */}
+      <nav aria-label={tr('Accesos rápidos', 'Quick actions')} className="grid grid-cols-2 xl:grid-cols-4 gap-3 -mt-2 no-print">
+        {actions.map((a) => {
+          const inner = (<>
+            <span className="size-12 rounded-[14px] grid place-items-center bg-accent-soft text-accent-ink shrink-0 group-hover:bg-accent group-hover:text-on-accent transition-colors" aria-hidden>{a.icon}</span>
+            <span className="min-w-0 text-left">
+              <span className="block font-semibold leading-snug">{a.title}</span>
+              <span className="block text-muted text-[0.88rem]">{a.text}</span>
+            </span>
+          </>)
+          const cls = 'group card flex items-center gap-4 p-4 hover:border-accent transition-colors'
+          return a.to ? <Link key={a.title} to={a.to} className={cls}>{inner}</Link> : <button key={a.title} type="button" onClick={a.onClick} className={cls}>{inner}</button>
+        })}
+      </nav>
+
+      {/* Headline figures, each with its recent trend. */}
+      <section className="card grid sm:grid-cols-2 xl:grid-cols-4 [&>*]:border-line sm:[&>*:nth-child(even)]:border-l xl:[&>*+*]:border-l [&>*+*]:border-t sm:[&>*:nth-child(2)]:border-t-0 xl:[&>*+*]:border-t-0">
         <Stat label={tr(`Recibido en ${d.year}`, `Received in ${d.year}`)} value={money(k.total, { whole: true })}
-          badge={<Delta value={k.ytdChange} />} note={k.ytdChange != null ? tr(`comparado con la misma fecha de ${d.year - 1}`, `compared with the same date in ${d.year - 1}`) : undefined} />
+          badge={<Delta value={k.ytdChange} />} note={k.ytdChange != null ? tr(`comparado con la misma fecha de ${d.year - 1}`, `compared with the same date in ${d.year - 1}`) : undefined}
+          spark={months.map((m) => m.total)} sparkLabel={tr('Total de cada mes', 'Each month’s total')} />
         <Stat label={d.isCurrent ? tr(`${monthName}, hasta hoy`, `${monthName} so far`) : monthName} value={money(k.thisMonth, { whole: true })}
-          note={tr(`Mes anterior completo: ${money(k.prevMonth, { whole: true })}`, `Full previous month: ${money(k.prevMonth, { whole: true })}`)} />
+          note={tr(`Mes anterior completo: ${money(k.prevMonth, { whole: true })}`, `Full previous month: ${money(k.prevMonth, { whole: true })}`)}
+          spark={d.weekly.map((w) => w.total)} sparkLabel={tr('Últimas 12 semanas', 'Last 12 weeks')} />
         <Stat label={tr('Personas que ofrendaron', 'People who gave')} value={num(k.givers)}
-          note={k.giversPrev ? tr(`${k.giversPrev} en todo ${d.year - 1}`, `${k.giversPrev} in all of ${d.year - 1}`) : undefined} />
-        <Stat label={tr('Ofrenda promedio', 'Average gift')} value={money(k.average)} note={tr(`${num(k.count)} ofrendas registradas`, `${num(k.count)} offerings recorded`)} />
+          note={k.giversPrev ? tr(`${k.giversPrev} en todo ${d.year - 1}`, `${k.giversPrev} in all of ${d.year - 1}`) : undefined}
+          spark={months.map((m) => m.givers)} sparkLabel={tr('Personas por mes', 'People per month')} />
+        <Stat label={tr('Ofrenda promedio', 'Average gift')} value={money(k.average)} note={tr(`${num(k.count)} ofrendas registradas`, `${num(k.count)} offerings recorded`)}
+          spark={months.map((m) => (m.count ? m.total / m.count : 0))} sparkLabel={tr('Promedio de cada mes', 'Each month’s average')} />
       </section>
 
       {session!.features.ai && k.count > 0 && <AiSummary year={d.year} />}
 
       <div className="grid xl:grid-cols-3 gap-5">
-        <Card className="xl:col-span-2" title={tr('Ofrendas por mes', 'Offerings by month')} hint={tr('Cada punto es el total de un mes.', 'Each point is the total for one month.')}>
+        <Card className="xl:col-span-2" title={tr('Ofrendas por mes', 'Offerings by month')} hint={tr('Compara este año con el anterior. «Acumulado» muestra cuánto se lleva reunido en el año.', 'Compare this year with last. “Year to date” shows how much has been gathered so far.')}>
           <MonthlyChart year={d.year} upTo={d.refMonth} data={d.monthly.map((m) => ({ label: labels.month(m.month), total: m.total, previous: m.previous }))} />
         </Card>
         <Card title={tr('¿A qué fondos se dio?', 'Which funds received?')} hint={tr(`Total de ${d.year}`, `${d.year} total`)}>
-          <Breakdown empty={tr('Aún no hay ofrendas este año.', 'No offerings yet this year.')} items={d.byFund.map((f) => ({ key: f.id, label: f.name, value: f.total, slot: f.color_slot }))} />
+          <Donut empty={tr('Aún no hay ofrendas este año.', 'No offerings yet this year.')} centerLabel={tr('Total', 'Total')}
+            items={d.byFund.map((f) => ({ key: f.id, label: f.name, value: f.total, color: seriesColor(f.color_slot) }))} />
+        </Card>
+      </div>
+
+      <div className="grid xl:grid-cols-2 gap-5">
+        <Card title={tr('Últimas 12 semanas', 'Last 12 weeks')} hint={tr('Lo recibido cada semana. Útil para ver domingos flojos o especiales.', 'What came in each week. Handy for spotting slow or special Sundays.')}>
+          <Columns height="19rem" data={weeks} ghost={d.isCurrent ? weeks[weeks.length - 1]?.label : undefined} tipLabel={tr('Recibido', 'Received')} />
+        </Card>
+        <Card title={tr('Fondos mes a mes', 'Funds month by month')} hint={tr('Cómo se reparte cada mes entre los fondos.', 'How each month splits across funds.')}>
+          <FundStack upTo={upTo} funds={d.byFund} months={d.monthly.map((m) => ({ label: labels.month(m.month), byFund: m.byFund }))} />
         </Card>
       </div>
 
@@ -175,56 +226,70 @@ export default function Dashboard() {
         <Card title={tr('Comparativos', 'Comparisons')}
           action={<Tabs value={compare} onChange={setCompare} options={[{ value: 'member', label: tr('Por miembro', 'By member') }, { value: 'year', label: tr('Por año', 'By year') }, { value: 'method', label: tr('Por método', 'By method') }]} />}>
           {compare === 'member' && (d.topMembers.length
-            ? <Ranking items={d.topMembers.slice(0, 6).map((m) => ({ key: m.id, label: m.name, value: m.total, avatar: m.avatar_file, showAvatar: true }))} />
+            ? <Ranking items={d.topMembers.slice(0, 7).map((m) => ({ key: m.id, label: m.name, value: m.total, avatar: m.avatar_file, showAvatar: true }))} />
             : <p className="text-muted py-4">{tr('Aún no hay ofrendas con nombre este año.', 'No named offerings yet this year.')}</p>)}
           {compare === 'year' && <Columns data={d.yearly.map((y) => ({ label: String(y.year), value: y.total }))} highlight={String(d.year)} />}
           {compare === 'method' && <Ranking items={d.byMethod.map((m) => ({ key: m.method, label: labels.method(m.method), value: m.total, sub: tr(`${num(m.count)} ofrendas`, `${num(m.count)} gifts`) }))} />}
         </Card>
       </div>
 
-      <div className="grid xl:grid-cols-3 gap-5">
-        <Card pad={false} className="xl:col-span-2" title={tr('Últimas ofrendas', 'Latest offerings')}
-          action={<Link to="/ofrendas" className="text-accent-ink font-semibold hover:underline underline-offset-4">{tr('Ver todas', 'See all')}</Link>}>
-          <ul className="mt-3 divide-y divide-line border-t border-line">
-            {d.recent.map((o) => (
-              <li key={o.id} className="flex items-center gap-3.5 px-5 sm:px-6 py-3">
-                <Avatar name={o.member_name || '·'} file={o.member_avatar} size={40} />
-                <div className="flex-1 min-w-0">
-                  <p className="truncate font-medium">{o.member_name || <span className="text-ink-soft">{labels.loose}</span>}</p>
-                  <p className="text-muted text-[0.87rem] flex items-center gap-2">
-                    <span className="size-2 rounded-full" style={{ background: seriesColor(o.fund_color) }} aria-hidden />{o.fund_name} · {labels.method(o.method)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold">{money(o.amount)}</p>
-                  <p className="text-muted text-[0.87rem]">{date(o.date)}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+      <div className="grid lg:grid-cols-2 2xl:grid-cols-3 gap-5">
+        <Card title={tr('¿Quiénes ofrendan?', 'Who gives?')}
+          hint={tr(`Regulares: dieron en ${seg.regularMonths} meses o más este año. Nuevos: su primera ofrenda fue este año.`, `Regular: gave in ${seg.regularMonths}+ months this year. New: first gift ever was this year.`)}>
+          <Donut format="number" centerLabel={tr('Personas', 'People')} empty={tr('Aún no hay ofrendas con nombre.', 'No named offerings yet.')}
+            items={[
+              { key: 'regular', label: tr('Regulares', 'Regular'), value: seg.regular, color: seriesColor(1) },
+              { key: 'occasional', label: tr('Ocasionales', 'Occasional'), value: seg.occasional, color: seriesColor(2) },
+              { key: 'new', label: tr('Nuevos', 'New'), value: seg.new, color: seriesColor(3) },
+            ].filter((x) => x.value > 0)} />
         </Card>
-        <Card title={tr('Metas', 'Goals')} action={<Link to="/metas" className="text-accent-ink font-semibold hover:underline underline-offset-4">{tr('Ver todas', 'See all')}</Link>}>
+        <Card title={tr('¿Cómo se dio?', 'How was it given?')} hint={tr(`Formas de pago en ${d.year}`, `Payment methods in ${d.year}`)}>
+          <Donut centerLabel={tr('Total', 'Total')} empty={tr('Aún no hay ofrendas este año.', 'No offerings yet this year.')}
+            items={METHODS.map((m, i) => ({ key: m, label: labels.method(m), value: d.byMethod.find((x) => x.method === m)?.total || 0, color: seriesColor(i + 1) })).filter((x) => x.value > 0)} />
+        </Card>
+        <Card className="lg:col-span-2 2xl:col-span-1" title={tr('Metas', 'Goals')} action={<Link to="/metas" className="text-accent-ink font-semibold hover:underline underline-offset-4">{tr('Ver todas', 'See all')}</Link>}>
           {d.goals.length === 0 ? (
             <div>
               <p className="text-muted">{tr('Pon una meta —un techo nuevo, un viaje misionero— y sigue su avance aquí.', 'Set a goal — a new roof, a mission trip — and follow its progress here.')}</p>
               <Link to="/metas" className="inline-block mt-4"><Button>{tr('Crear una meta', 'Create a goal')}</Button></Link>
             </div>
           ) : (
-            <ul className="grid gap-5">
+            <ul className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-1">
               {d.goals.map((g) => (
-                <li key={g.id}>
-                  <div className="flex justify-between gap-3 items-baseline mb-1.5">
-                    <span className="font-medium truncate">{g.name}</span>
-                    {g.raised >= g.target_amount ? <Badge tone="good">{tr('¡Lograda!', 'Reached!')}</Badge> : <span className="text-muted text-[0.9rem]">{Math.round((g.raised / g.target_amount) * 100)}%</span>}
+                <li key={g.id} className="flex items-center gap-4">
+                  <Ring value={g.raised} target={g.target_amount} />
+                  <div className="min-w-0">
+                    <p className="font-semibold truncate">{g.name}</p>
+                    <p className="text-ink-soft">{money(g.raised, { whole: true })} <span className="text-muted">{tr('de', 'of')} {money(g.target_amount, { whole: true })}</span></p>
+                    <p className="text-muted text-[0.87rem]">{g.raised >= g.target_amount ? tr('¡Meta lograda!', 'Goal reached!') : `${tr('Faltan', 'To go:')} ${money(g.target_amount - g.raised, { whole: true })} · ${tr('hasta el', 'until')} ${date(g.end_date)}`}</p>
                   </div>
-                  <ProgressBar value={g.raised} target={g.target_amount} />
-                  <p className="text-muted text-[0.87rem] mt-1.5">{money(g.raised, { whole: true })} {tr('de', 'of')} {money(g.target_amount, { whole: true })} · {tr('hasta el', 'until')} {date(g.end_date)}</p>
                 </li>
               ))}
             </ul>
           )}
         </Card>
       </div>
+
+      <Card pad={false} title={tr('Últimas ofrendas', 'Latest offerings')}
+        action={<Link to="/ofrendas" className="text-accent-ink font-semibold hover:underline underline-offset-4">{tr('Ver todas', 'See all')}</Link>}>
+        <ul className="mt-3 border-t border-line grid lg:grid-cols-2 lg:[&>li:nth-child(odd)]:border-r [&>li]:border-line [&>li]:border-b">
+          {d.recent.map((o) => (
+            <li key={o.id} className="flex items-center gap-3.5 px-5 sm:px-6 py-3">
+              <Avatar name={o.member_name || '·'} file={o.member_avatar} size={42} />
+              <div className="flex-1 min-w-0">
+                <p className="truncate font-medium">{o.member_name || <span className="text-ink-soft">{labels.loose}</span>}</p>
+                <p className="text-muted text-[0.87rem] flex items-center gap-2">
+                  <span className="size-2 rounded-full" style={{ background: seriesColor(o.fund_color) }} aria-hidden />{o.fund_name} · {labels.method(o.method)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold">{money(o.amount)}</p>
+                <p className="text-muted text-[0.87rem]">{date(o.date)}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
     </div>
   )
 }

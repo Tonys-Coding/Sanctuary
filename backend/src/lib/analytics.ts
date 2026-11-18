@@ -22,7 +22,8 @@ export async function dashboard(orgId: string, yearParam?: number) {
   const p = [orgId, year];
 
   const [monthRows, ytdPrev, yearAgg, prevGivers, byFund, byMethod, topMembers, yearly, recent, goals, windows, newGivers, lapsed, loose] = await Promise.all([
-    q(`SELECT extract(year FROM date)::int AS y, extract(month FROM date)::int AS m, sum(amount) AS total, count(*) AS count
+    q(`SELECT extract(year FROM date)::int AS y, extract(month FROM date)::int AS m, sum(amount) AS total, count(*) AS count,
+              count(DISTINCT member_id) AS givers
        FROM offerings WHERE org_id = $1 AND extract(year FROM date) IN ($2::int, $2::int - 1) GROUP BY 1, 2`, p),
     one(`SELECT COALESCE(sum(amount), 0) AS total FROM offerings WHERE org_id = $1 AND date >= make_date($2::int - 1, 1, 1) AND date <= ($3::date - interval '1 year')`, [orgId, year, ref]),
     one(`SELECT COALESCE(sum(amount), 0) AS total, count(*) AS count, COALESCE(avg(amount), 0) AS average, count(DISTINCT member_id) AS givers
@@ -38,7 +39,7 @@ export async function dashboard(orgId: string, yearParam?: number) {
     q(`SELECT o.id, o.amount, o.date, o.method, CASE WHEN m.id IS NULL THEN NULL ELSE ${fullName} END AS member_name, m.avatar_file AS member_avatar,
               f.name AS fund_name, f.color_slot AS fund_color
        FROM offerings o LEFT JOIN members m ON m.id = o.member_id JOIN funds f ON f.id = o.fund_id
-       WHERE o.org_id = $1 ORDER BY o.date DESC, o.created_at DESC LIMIT 7`, [orgId]),
+       WHERE o.org_id = $1 ORDER BY o.date DESC, o.created_at DESC LIMIT 8`, [orgId]),
     q(`${GOALS} AND g.end_date >= current_date - 30 ORDER BY g.end_date LIMIT 4`, [orgId]),
     one(`SELECT COALESCE(sum(amount) FILTER (WHERE date > $2::date - 30), 0) AS last30,
                 COALESCE(sum(amount) FILTER (WHERE date <= $2::date - 30), 0) AS prev30
@@ -52,12 +53,36 @@ export async function dashboard(orgId: string, yearParam?: number) {
     one(`SELECT COALESCE(sum(amount), 0) AS total FROM offerings WHERE org_id = $1 AND extract(year FROM date) = $2::int AND member_id IS NULL`, p),
   ]);
 
+  const [weekly, fundMonthly, giverRows] = await Promise.all([
+    // Last 12 weeks up to the reference day; each week is labelled by its Sunday.
+    q(`SELECT to_char(g.w + interval '6 days', 'YYYY-MM-DD') AS sunday, COALESCE(sum(o.amount), 0) AS total, count(o.id) AS count
+       FROM generate_series(date_trunc('week', $2::date) - interval '11 weeks', date_trunc('week', $2::date), interval '1 week') AS g(w)
+       LEFT JOIN offerings o ON o.org_id = $1 AND o.date >= g.w AND o.date < g.w + interval '7 days'
+       GROUP BY g.w ORDER BY g.w`, [orgId, ref]),
+    q(`SELECT extract(month FROM o.date)::int AS m, o.fund_id, sum(o.amount) AS total
+       FROM offerings o WHERE o.org_id = $1 AND extract(year FROM o.date) = $2::int GROUP BY 1, 2`, p),
+    // How each giver of the year behaves: months with a gift, and whether this year is their first.
+    q(`SELECT member_id, count(DISTINCT extract(month FROM date)) AS months,
+              (SELECT min(date) FROM offerings x WHERE x.org_id = $1 AND x.member_id = o.member_id) AS first_date
+       FROM offerings o WHERE o.org_id = $1 AND member_id IS NOT NULL AND extract(year FROM date) = $2::int
+       GROUP BY member_id`, p),
+  ]);
+  const regularMonths = Math.max(1, Math.round(refMonth * 0.75));
+  const segments = { regular: 0, occasional: 0, new: 0 };
+  for (const g of giverRows) {
+    if (Number(String(g.first_date).slice(0, 4)) === year) segments.new++;
+    else if (g.months >= regularMonths) segments.regular++;
+    else segments.occasional++;
+  }
+
   const cell = (y: number, m: number) => monthRows.find((r) => r.y === y && r.m === m);
   const monthly = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     total: cell(year, i + 1)?.total ?? 0,
     previous: cell(year - 1, i + 1)?.total ?? 0,
     count: cell(year, i + 1)?.count ?? 0,
+    givers: cell(year, i + 1)?.givers ?? 0,
+    byFund: Object.fromEntries(fundMonthly.filter((f) => f.m === i + 1).map((f) => [f.fund_id, f.total])),
   }));
   const thisMonth = monthly[refMonth - 1].total;
   const prevMonth = refMonth === 1 ? cell(year - 1, 12)?.total ?? 0 : monthly[refMonth - 2].total;
@@ -86,5 +111,6 @@ export async function dashboard(orgId: string, yearParam?: number) {
       loose: loose.total as number,
     },
     monthly, byFund, byMethod, topMembers, yearly, recent, goals, insights,
+    weekly, segments: { ...segments, regularMonths },
   };
 }

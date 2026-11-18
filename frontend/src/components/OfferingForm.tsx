@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useFunds } from '../lib/data'
-import { METHODS, seriesColor, todayIso, useLabels } from '../lib/labels'
+import { METHODS, parseAmount, seriesColor, todayIso, useLabels } from '../lib/labels'
 import type { Member, Method, Offering } from '../lib/types'
 import { Button, Choice, ErrorNote, Field, Modal, useFeedback } from './ui'
 import { MemberPicker } from './MemberPicker'
@@ -16,10 +16,10 @@ const Ctx = createContext<(o?: OpenOptions) => void>(() => {})
 export const useOfferingForm = () => useContext(Ctx)
 
 export function OfferingFormProvider({ children }: { children: ReactNode }) {
-  const { tr, money } = useApp()
+  const { tr, money, date } = useApp()
   const labels = useLabels()
   const qc = useQueryClient()
-  const { toast } = useFeedback()
+  const { toast, confirm } = useFeedback()
   const { data: funds = [] } = useFunds()
   const [draft, setDraft] = useState<Draft | null>(null)
   const [busy, setBusy] = useState(false)
@@ -42,13 +42,33 @@ export function OfferingFormProvider({ children }: { children: ReactNode }) {
   }, [draft, funds])
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => (d ? { ...d, [k]: v } : d))
-  const amount = Number(draft?.amount.replace(',', '.'))
+  const amount = parseAmount(draft?.amount || '')
   const valid = !!draft && amount > 0 && !!draft.fund_id && !!draft.date
+
+  // The person's most recent gift, shown under the name as a quick sanity check.
+  const { data: last } = useQuery({
+    queryKey: ['offerings', 'last', draft?.member_id],
+    queryFn: () => api.get<{ rows: Offering[] }>(`/offerings?memberId=${draft!.member_id}&limit=1`),
+    enabled: !!draft?.member_id && !draft?.id,
+  })
+  const lastGift = draft?.member_id && !draft.id ? last?.rows[0] : undefined
+  const future = !!draft && draft.date > todayIso()
 
   const save = async (another: boolean) => {
     if (!draft || !valid) return
     setBusy(true); setError(null)
     try {
+      // Same person, same day, same amount: very often the same envelope typed twice.
+      if (!draft.id && draft.member_id) {
+        const same = await api.get<{ rows: Offering[] }>(`/offerings?memberId=${draft.member_id}&from=${draft.date}&to=${draft.date}&limit=50`)
+        const dup = same.rows.find((o) => Math.abs(o.amount - amount) < 0.005)
+        if (dup && !(await confirm({
+          title: tr('¿Registrar otra ofrenda igual?', 'Record another identical offering?'),
+          body: tr(`Ya hay una ofrenda de ${dup.member_name} por ${money(dup.amount)} (${dup.fund_name}) en esta fecha. Si es un sobre distinto, puedes guardarla; si no, cancela.`,
+            `There is already a ${money(dup.amount)} offering from ${dup.member_name} (${dup.fund_name}) on this date. If it is a different envelope you can save it; otherwise cancel.`),
+          confirm: tr('Sí, es otra ofrenda', 'Yes, it is another one'),
+        }))) return
+      }
       const body = { ...draft, amount }
       if (draft.id) await api.patch(`/offerings/${draft.id}`, body)
       else await api.post('/offerings', body)
@@ -87,7 +107,9 @@ export function OfferingFormProvider({ children }: { children: ReactNode }) {
       >
         {draft && (
           <form className="grid gap-5" onSubmit={(e) => { e.preventDefault(); save(!draft.id) }}>
-            <Field label={tr('¿Quién da la ofrenda?', 'Who is giving?')} hint={tr('Déjalo vacío para una ofrenda suelta (sin nombre).', 'Leave empty for a loose offering (no name).')}>
+            <Field label={tr('¿Quién da la ofrenda?', 'Who is giving?')} hint={lastGift
+              ? tr(`Su última ofrenda: ${money(lastGift.amount)} · ${lastGift.fund_name} · ${date(lastGift.date)}`, `Their last gift: ${money(lastGift.amount)} · ${lastGift.fund_name} · ${date(lastGift.date)}`)
+              : tr('Déjalo vacío para una ofrenda suelta (sin nombre).', 'Leave empty for a loose offering (no name).')}>
               {() => <MemberPicker id="offering-member" value={draft.member_id} onChange={(v) => { set('member_id', v); if (v) amountRef.current?.focus() }} onCreate={createMember} autoFocus={!draft.id && !draft.member_id} />}
             </Field>
             <div className="grid sm:grid-cols-2 gap-5">
@@ -100,7 +122,7 @@ export function OfferingFormProvider({ children }: { children: ReactNode }) {
                   </div>
                 )}
               </Field>
-              <Field label={tr('Fecha', 'Date')}>
+              <Field label={tr('Fecha', 'Date')} error={future ? tr('Esta fecha todavía no llega. ¿Es correcta?', 'This date has not happened yet. Is it right?') : undefined}>
                 {(id) => <input id={id} type="date" className="ctl !min-h-14" value={draft.date} max="2100-12-31" onChange={(e) => set('date', e.target.value)} />}
               </Field>
             </div>

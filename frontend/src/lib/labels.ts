@@ -68,3 +68,25 @@ export const todayIso = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 export const seriesColor = (slot?: number | null) => `var(--series-${(((slot || 1) - 1) % 8) + 1})`
+
+/**
+ * Reads an amount the way people type it: "1,250.50", "1250", "$ 45", or "45,50" (comma as decimal).
+ * Returns NaN when it cannot be read.
+ */
+export function parseAmount(input: string): number {
+  let s = input.replace(/[^\d.,]/g, '')
+  if (!s) return NaN
+  const lastComma = s.lastIndexOf(',')
+  const lastDot = s.lastIndexOf('.')
+  if (lastComma > -1 && lastDot > -1) {
+    // Whichever comes last is the decimal mark: "1,250.50" or "1.250,50".
+    s = lastDot > lastComma ? s.replace(/,/g, '') : s.replace(/\./g, '').replace(',', '.')
+  } else if (lastComma > -1) {
+    // Only commas: "45,50" is a decimal, "1,250" is thousands.
+    s = /,\d{1,2}$/.test(s) && (s.match(/,/g) || []).length === 1 ? s.replace(',', '.') : s.replace(/,/g, '')
+  } else if ((s.match(/\./g) || []).length > 1) {
+    s = s.replace(/\.(?=.*\.)/g, '') // "1.250.50" → "1250.50"
+  }
+  const n = Math.round(parseFloat(s) * 100) / 100
+  return Number.isFinite(n) ? n : NaN
+}

@@ -37,7 +37,25 @@ r.get('/', async (req, res) => {
      ORDER BY m.first_name, m.last_name`,
     [req.user.orgId, search],
   );
-  res.json(rows);
+  // Last 12 months per member, for the small trend line and "gave in X of 12 months" on each card.
+  const months = await q(
+    `SELECT member_id, (extract(year FROM age(date_trunc('month', current_date), date_trunc('month', date))) * 12
+              + extract(month FROM age(date_trunc('month', current_date), date_trunc('month', date))))::int AS ago,
+            sum(amount) AS total
+     FROM offerings WHERE org_id = $1 AND member_id IS NOT NULL AND date >= date_trunc('month', current_date) - interval '11 months'
+     GROUP BY 1, 2`,
+    [req.user.orgId],
+  );
+  const spark = new Map<string, number[]>();
+  for (const row of months) {
+    const arr = spark.get(row.member_id) || Array(12).fill(0);
+    arr[11 - row.ago] = row.total;
+    spark.set(row.member_id, arr);
+  }
+  res.json(rows.map((m) => {
+    const s = spark.get(m.id) || Array(12).fill(0);
+    return { ...m, spark: s, months_given: s.filter((v) => v > 0).length };
+  }));
 });
 
 r.post('/', async (req, res) => {

@@ -4,7 +4,7 @@ import { Pencil, Plus, Target, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useFunds, useGoals } from '../lib/data'
-import { seriesColor, todayIso } from '../lib/labels'
+import { parseAmount, seriesColor, todayIso } from '../lib/labels'
 import type { Goal } from '../lib/types'
 import { Badge, Button, Card, Empty, ErrorNote, Field, IconButton, Modal, PageHeader, Spinner, useFeedback } from '../components/ui'
 import { ProgressBar } from '../components/charts'
@@ -27,7 +27,8 @@ export default function Goals() {
     if (!f) return
     setBusy(true); setError(null)
     try {
-      if (f.id) await api.patch(`/goals/${f.id}`, f); else await api.post('/goals', f)
+      const body = { ...f, target_amount: parseAmount(f.target_amount) }
+      if (f.id) await api.patch(`/goals/${f.id}`, body); else await api.post('/goals', body)
       await qc.invalidateQueries(); toast(tr('Meta guardada', 'Goal saved')); setF(null)
     } catch (e) { setError(e) } finally { setBusy(false) }
   }
@@ -85,13 +86,13 @@ export default function Goals() {
       )}
 
       <Modal open={!!f} onClose={() => setF(null)} title={f?.id ? tr('Editar meta', 'Edit goal') : tr('Nueva meta', 'New goal')}
-        footer={<><Button onClick={() => setF(null)}>{tr('Cancelar', 'Cancel')}</Button><Button variant="primary" busy={busy} onClick={save} disabled={!f?.name.trim() || !(Number(f?.target_amount) > 0)}>{tr('Guardar', 'Save')}</Button></>}>
+        footer={<><Button onClick={() => setF(null)}>{tr('Cancelar', 'Cancel')}</Button><Button variant="primary" busy={busy} onClick={save} disabled={!f?.name.trim() || !(parseAmount(f?.target_amount || '') > 0)}>{tr('Guardar', 'Save')}</Button></>}>
         {f && (
           <form className="grid gap-5" onSubmit={(e) => { e.preventDefault(); save() }}>
             <Field label={tr('Nombre de la meta', 'Goal name')}>{(id) => <input id={id} className="ctl" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />}</Field>
             <div className="grid sm:grid-cols-2 gap-5">
               <Field label={tr('¿Cuánto quieren reunir?', 'How much do you want to raise?')}>
-                {(id) => <div className="relative"><span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">$</span><input id={id} className="ctl !pl-8" inputMode="decimal" value={f.target_amount} onChange={(e) => setF({ ...f, target_amount: e.target.value.replace(/[^\d.]/g, '') })} /></div>}
+                {(id) => <div className="relative"><span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">$</span><input id={id} className="ctl !pl-8" inputMode="decimal" value={f.target_amount} onChange={(e) => setF({ ...f, target_amount: e.target.value.replace(/[^\d.,]/g, '') })} /></div>}
               </Field>
               <Field label={tr('Fondo que cuenta', 'Fund that counts')}>
                 {(id) => <select id={id} className="ctl" value={f.fund_id} onChange={(e) => setF({ ...f, fund_id: e.target.value })}><option value="">{tr('Todos los fondos', 'All funds')}</option>{funds.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>}

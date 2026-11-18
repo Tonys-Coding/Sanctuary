@@ -1,10 +1,11 @@
 import { Suspense, useEffect, useState, type ReactNode } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { ChartColumn, ClipboardList, HandCoins, History, Landmark, LayoutDashboard, LogOut, Menu, Moon, Plus, Settings, Sparkles, Sun, Target, Users, X } from 'lucide-react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { ChartColumn, ClipboardList, HandCoins, History, Landmark, LifeBuoy, LayoutDashboard, LogOut, Menu, Moon, Plus, Settings, Sparkles, Sun, Target, Users, X } from 'lucide-react'
 import { useApp } from '../lib/app'
 import { fileUrl } from '../lib/api'
 import { Avatar, Button, IconButton, Spinner, cx } from './ui'
 import { useOfferingForm } from './OfferingForm'
+import { MemberPicker } from './MemberPicker'
 
 export function Logo({ size = 40, className }: { size?: number; className?: string }) {
   return <img src="/brand/logo.svg" alt="" width={size} height={size} className={className} />
@@ -65,6 +66,7 @@ export default function Layout() {
   const openOffering = useOfferingForm()
   const [menu, setMenu] = useState(false)
   const loc = useLocation()
+  const navigate = useNavigate()
   useEffect(() => setMenu(false), [loc.pathname])
   if (!session) return null
   const { user, org, features } = session
@@ -97,6 +99,7 @@ export default function Layout() {
         <Group label="General">
           <Item to="/actividad" icon={<History size={21} />}>{tr('Actividad', 'Activity')}</Item>
           <Item to="/configuracion" icon={<Settings size={21} />}>{tr('Configuración', 'Settings')}</Item>
+          <Item to="/ayuda" icon={<LifeBuoy size={21} />}>{tr('Ayuda', 'Help')}</Item>
         </Group>
       </div>
       <div className="border-t border-line pt-3 -mx-1 px-1">
@@ -115,11 +118,11 @@ export default function Layout() {
   )
 
   return (
-    <div className="min-h-dvh lg:pl-[272px]">
+    <div className="min-h-dvh lg:pl-[17rem]">
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:z-50 focus:top-3 focus:left-3 focus:bg-accent focus:text-on-accent focus:px-4 focus:py-2 focus:rounded-lg">
         {tr('Saltar al contenido', 'Skip to content')}
       </a>
-      <aside className="hidden lg:block fixed inset-y-0 left-0 w-[272px] border-r border-line bg-surface p-4 no-print">{nav}</aside>
+      <aside className="hidden lg:block fixed inset-y-0 left-0 w-[17rem] border-r border-line bg-surface p-4 no-print">{nav}</aside>
 
       {menu && (
         <div className="lg:hidden fixed inset-0 z-40 no-print">
@@ -132,12 +135,15 @@ export default function Layout() {
       )}
 
       <header className="sticky top-0 z-20 bg-bg/95 backdrop-blur-sm border-b border-line no-print">
-        <div className="flex items-center gap-2 sm:gap-3 h-[68px] px-4 sm:px-8 max-w-[1500px] mx-auto">
+        <div className="flex items-center gap-2 sm:gap-3 h-[4.2rem] px-4 sm:px-6 2xl:px-10">
           <IconButton label={tr('Abrir menú', 'Open menu')} onClick={() => setMenu(true)} className="lg:hidden -ml-2"><Menu size={24} /></IconButton>
-          <p className="hidden sm:block text-[1.05rem] truncate">
+          <p className="hidden sm:block text-[1.05rem] truncate shrink-0">
             {tr('Hola', 'Hello')}, <span className="font-semibold">{first}</span>
           </p>
-          <div className="flex-1" />
+          <div className="flex-1 hidden md:flex justify-center px-4">
+            <div className="w-full max-w-md"><MemberPicker id="buscar-miembro" value={null} allowLoose={false} placeholder={tr('Buscar un miembro…', 'Find a member…')} onChange={(id) => id && navigate(`/miembros/${id}`)} /></div>
+          </div>
+          <div className="flex-1 md:hidden" />
           <LangToggle />
           <ThemeToggle />
           <Button variant="primary" icon={<Plus size={20} aria-hidden />} onClick={() => openOffering()}>
@@ -147,7 +153,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <main id="contenido" className="px-4 sm:px-8 py-7 sm:py-9 max-w-[1500px] mx-auto">
+      <main id="contenido" className="px-4 sm:px-6 2xl:px-10 py-6 sm:py-8">
         <Suspense fallback={<Spinner />}><Outlet /></Suspense>
       </main>
     </div>

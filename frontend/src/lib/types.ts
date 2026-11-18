@@ -15,6 +15,8 @@ export interface Member {
   city: string | null; state: string | null; postal_code: string | null; birth_date: string | null; joined_date: string | null
   status: 'active' | 'inactive' | 'visitor'; church_role: 'pastor' | 'leader' | 'member' | 'visitor'; envelope_number: string | null
   notes: string | null; avatar_file: string | null; total_year: number; total_all: number; offering_count: number; last_date: string | null
+  /** Totals for each of the last 12 months, oldest first. */
+  spark: number[]; months_given: number
 }
 export interface Fund { id: string; name: string; color_slot: number; tax_deductible: boolean; archived_at: string | null; total_year: number; offering_count: number }
 export interface Offering {

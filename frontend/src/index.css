@@ -96,8 +96,9 @@
 
 @layer base {
   html {
-    /* A slightly larger base size: the people using this are reading numbers, often with reading glasses. */
-    font-size: 17px;
+    /* Larger than usual and growing with the screen: the people using this read numbers, often with reading glasses.
+       17px on a laptop, up to 20px on a large monitor. */
+    font-size: clamp(17px, 0.45vw + 11px, 20px);
     -webkit-text-size-adjust: 100%;
   }
   body {

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronRight, ClipboardList, Lock, Plus } from 'lucide-react'
 import { api } from '../lib/api'
@@ -21,6 +21,11 @@ export default function Batches() {
   const [error, setError] = useState<unknown>(null)
 
   const start = () => { setF({ date: todayIso(), name: presets[0], attendance: '', counted_by: session!.user.full_name }); setError(null); setOpen(true) }
+  const [params, setParams] = useSearchParams()
+  useEffect(() => {
+    if (params.get('nuevo')) { start(); setParams({}, { replace: true }) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const create = async () => {
     setBusy(true); setError(null)
     try { const b = await api.post<Batch>('/batches', f); await qc.invalidateQueries({ queryKey: ['batches'] }); nav(`/conteos/${b.id}`) } catch (e) { setError(e) } finally { setBusy(false) }

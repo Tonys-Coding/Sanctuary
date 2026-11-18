@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Cake, FileText, Hash, Mail, MapPin, Pencil, Phone, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Cake, FileText, Hash, Mail, MapPin, Send, Pencil, Phone, Plus, Trash2 } from 'lucide-react'
 import { api, download } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useLabels } from '../lib/labels'
@@ -11,6 +11,7 @@ import { Breakdown, Columns } from '../components/charts'
 import { OfferingTable } from '../components/OfferingTable'
 import { useOfferingForm } from '../components/OfferingForm'
 import { MemberForm } from '../components/MemberForm'
+import { EmailComposer } from '../components/EmailComposer'
 
 interface Detail {
   member: Member
@@ -29,6 +30,7 @@ export default function MemberDetail() {
   const { confirm, toast, fail } = useFeedback()
   const openOffering = useOfferingForm()
   const [editing, setEditing] = useState(false)
+  const [emailing, setEmailing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const { data, isPending, error } = useQuery({ queryKey: ['member', id], queryFn: () => api.get<Detail>(`/members/${id}`) })
   const { data: offerings } = useQuery({ queryKey: ['offerings', 'member', id], queryFn: () => api.get<{ rows: Offering[]; count: number }>(`/offerings?memberId=${id}&limit=100`) })
@@ -86,6 +88,7 @@ export default function MemberDetail() {
           <Button variant="primary" icon={<Plus size={19} />} onClick={() => openOffering({ memberId: m.id })}>{tr('Registrar ofrenda', 'Record offering')}</Button>
           <Button icon={<Pencil size={18} />} onClick={() => setEditing(true)}>{tr('Editar', 'Edit')}</Button>
           <Button icon={<FileText size={18} />} onClick={statement} disabled={s.count === 0}>{tr(`Estado ${year} (PDF)`, `${year} statement (PDF)`)}</Button>
+          {m.email && <Button icon={<Send size={18} />} onClick={() => setEmailing(true)} disabled={s.count === 0}>{tr('Enviar por correo', 'E-mail it')}</Button>}
           <Button variant="ghost" icon={<Trash2 size={18} />} onClick={remove}>{tr('Eliminar', 'Delete')}</Button>
         </div>
       </section>
@@ -112,6 +115,15 @@ export default function MemberDetail() {
         </Card>
       </>)}
       <MemberForm open={editing} member={m} onClose={() => setEditing(false)} />
+      {m.email && (
+        <EmailComposer open={emailing} onClose={() => setEmailing(false)} fixedRecipients={1}
+          title={tr(`Enviar a ${m.first_name} su estado de ofrendas`, `E-mail ${m.first_name} their giving statement`)}
+          intro={tr(`Se enviará a ${m.email} el estado de ${year} en PDF.`, `The ${year} statement will be sent as a PDF to ${m.email}.`)}
+          defaultSubject={tr(`Tu estado de ofrendas ${year}`, `Your ${year} giving statement`)}
+          defaultMessage={tr(`Hola {nombre}:\n\nTe compartimos el resumen de tus ofrendas de ${year}.\n\nGracias por tu fidelidad y tu generosidad.\n\nBendiciones.`, `Hello {name},\n\nHere is the summary of your ${year} giving.\n\nThank you for your faithfulness and generosity.\n\nBlessings.`)}
+          aiContext={`Attached PDF: ${m.first_name}'s ${year} giving statement`}
+          onSend={(msg) => api.post('/reports/email', { spec: { type: 'member', from: `${year}-01-01`, to: `${year}-12-31` }, memberIds: [m.id], subject: msg.subject, message: msg.message })} />
+      )}
     </div>
   )
 }

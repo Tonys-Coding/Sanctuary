@@ -11,7 +11,7 @@ import { Button, Card, Empty, PageHeader, Spinner, useFeedback } from '../compon
 import { OfferingTable } from '../components/OfferingTable'
 import { useOfferingForm } from '../components/OfferingForm'
 
-const PAGE = 50
+const PAGE = 100
 
 export default function Offerings() {
   const { tr, money, num } = useApp()
@@ -77,7 +77,7 @@ export default function Offerings() {
             <span className="text-[1.35rem] font-bold">{money(data.total)}</span>
             <span className="text-muted">{tr(`en ${num(data.count)} ofrendas`, `across ${num(data.count)} offerings`)}</span>
           </p>
-          <OfferingTable rows={data.rows} />
+          <OfferingTable rows={data.rows} groupByDay more={data.rows.length < data.count} />
           {data.rows.length < data.count && (
             <div className="p-4 text-center border-t border-line no-print">
               <Button onClick={() => setLimit((l) => l + PAGE)}>{tr(`Mostrar más (${num(data.count - data.rows.length)} restantes)`, `Show more (${num(data.count - data.rows.length)} left)`)}</Button>

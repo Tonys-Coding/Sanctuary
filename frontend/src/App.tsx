@@ -16,6 +16,7 @@ const Goals = lazy(() => import('./pages/Goals'))
 const Assistant = lazy(() => import('./pages/Assistant'))
 const Activity = lazy(() => import('./pages/Activity'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
+const Help = lazy(() => import('./pages/Help'))
 
 export default function App() {
   const { session, loading } = useApp()
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="asistente" element={<Assistant />} />
           <Route path="actividad" element={<Activity />} />
           <Route path="configuracion" element={<SettingsPage />} />
+          <Route path="ayuda" element={<Help />} />
         </Route>
         <Route path="/restablecer" element={<ResetPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

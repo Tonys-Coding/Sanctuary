@@ -263,10 +263,11 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
 
 // ─── Toasts & confirmation ───────────────────────────────────────────────────
 
-interface Toast { id: number; text: string; tone: 'good' | 'bad' }
+interface ToastAction { label: string; run: () => void }
+interface Toast { id: number; text: string; tone: 'good' | 'bad'; action?: ToastAction }
 interface ConfirmOptions { title: string; body?: string; confirm: string; danger?: boolean }
 interface Feedback {
-  toast: (text: string, tone?: 'good' | 'bad') => void
+  toast: (text: string, tone?: 'good' | 'bad', action?: ToastAction) => void
   fail: (e: unknown) => void
   confirm: (o: ConfirmOptions) => Promise<boolean>
 }
@@ -279,10 +280,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [ask, setAsk] = useState<(ConfirmOptions & { resolve: (v: boolean) => void }) | null>(null)
 
-  const toast = useCallback((text: string, tone: 'good' | 'bad' = 'good') => {
+  const toast = useCallback((text: string, tone: 'good' | 'bad' = 'good', action?: ToastAction) => {
     const id = Date.now() + Math.random()
-    setToasts((t) => [...t.slice(-2), { id, text, tone }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), tone === 'bad' ? 7000 : 4000)
+    setToasts((t) => [...t.slice(-2), { id, text, tone, action }])
+    // Messages with an "undo" stay longer, so there is time to read and react.
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 8000 : tone === 'bad' ? 7000 : 4000)
   }, [])
   const fail = useCallback((e: unknown) => toast(errorText(e), 'bad'), [toast, errorText])
   const confirm = useCallback((o: ConfirmOptions) => new Promise<boolean>((resolve) => setAsk({ ...o, resolve })), [])
@@ -304,7 +306,13 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div key={t.id} className={cx('rise pointer-events-auto flex items-center gap-2.5 px-5 py-3.5 rounded-[14px] shadow-card font-medium max-w-lg', t.tone === 'good' ? 'bg-ink text-bg' : 'bg-bad text-surface')}>
             {t.tone === 'good' ? <Check size={20} aria-hidden /> : <CircleAlert size={20} aria-hidden />}
-            {t.text}
+            <span>{t.text}</span>
+            {t.action && (
+              <button type="button" className="ml-2 -my-1 px-3 py-1.5 rounded-lg font-bold underline underline-offset-4 hover:bg-white/10"
+                onClick={() => { t.action!.run(); setToasts((all) => all.filter((x) => x.id !== t.id)) }}>
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

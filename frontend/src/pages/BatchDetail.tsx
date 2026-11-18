@@ -5,7 +5,7 @@ import { ArrowLeft, CircleCheck, Lock, LockOpen, Plus, Printer, Sparkles, Trash2
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useFunds } from '../lib/data'
-import { METHODS, useLabels } from '../lib/labels'
+import { METHODS, parseAmount, useLabels } from '../lib/labels'
 import type { Batch, Member, Method, Offering } from '../lib/types'
 import { Badge, Button, Card, Empty, ErrorNote, Field, Modal, Spinner, useFeedback } from '../components/ui'
 import { MemberPicker } from '../components/MemberPicker'
@@ -53,7 +53,7 @@ export default function BatchDetail() {
 
   const rows = list?.rows || []
   const closed = batch.status === 'closed'
-  const value = Number(amount.replace(',', '.'))
+  const value = parseAmount(amount)
   const group = (key: (o: Offering) => string) => Object.entries(rows.reduce<Record<string, number>>((a, o) => ({ ...a, [key(o)]: (a[key(o)] || 0) + o.amount }), {})).sort((a, b) => b[1] - a[1])
   const counted = Math.round(Object.entries(den).reduce((a, [k, v]) => a + Number(k) * (Number(v) || 0), 0) * 100) / 100
   const hasCount = Object.values(den).some((v) => Number(v) > 0)

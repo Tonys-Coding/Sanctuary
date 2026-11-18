@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Markdown from 'react-markdown'
-import { CalendarDays, ClipboardList, Download, FileSpreadsheet, HandCoins, Layers, List, Mail, Printer, Sparkles, UserRound, Users, Wallet, X } from 'lucide-react'
+import { CalendarCheck, CalendarDays, ClipboardList, Download, FileSpreadsheet, HandCoins, Layers, List, Mail, Printer, Sparkles, UserRound, Users, Wallet, X } from 'lucide-react'
 import { api, download } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useFunds } from '../lib/data'
@@ -81,8 +82,10 @@ export default function Reports() {
   const labels = useLabels()
   const { fail } = useFeedback()
   const { data: funds = [] } = useFunds(true)
+  const [params] = useSearchParams()
+  const preset = params.get('preset')
   const [type, setType] = useState<Type>('summary')
-  const [range, setRange] = useState<RangeKey>('this_year')
+  const [range, setRange] = useState<RangeKey>(preset === 'mes' ? 'last_month' : 'this_year')
   const [custom, setCustom] = useState({ from: '', to: '' })
   const [fundId, setFundId] = useState('')
   const [method, setMethod] = useState('')
@@ -126,8 +129,29 @@ export default function Reports() {
     <>
       <PageHeader title={tr('Informes', 'Reports')} subtitle={tr('Elige qué quieres ver y de qué periodo. El informe aparece abajo, listo para imprimir, descargar o enviar por correo.', 'Choose what you want to see and for which period. The report appears below, ready to print, download or e-mail.')} />
 
+      {/* The reports a treasurer asks for most, one click each. */}
+      <div className="grid sm:grid-cols-3 gap-3 mb-5 no-print">
+        {([
+          { icon: <CalendarCheck size={24} />, title: tr('Informe del mes pasado', 'Last month’s report'), text: tr('Para presentar a la junta o al pastor', 'To present to the board or the pastor'), t: 'summary' as Type, r: 'last_month' as RangeKey },
+          { icon: <Layers size={24} />, title: tr('Resumen del año', 'Year summary'), text: tr('Todo lo recibido este año', 'Everything received this year'), t: 'summary' as Type, r: 'this_year' as RangeKey },
+          { icon: <Users size={24} />, title: tr('Lo que dio cada miembro', 'What each member gave'), text: tr('Este año, persona por persona', 'This year, person by person'), t: 'by_member' as Type, r: 'this_year' as RangeKey },
+        ]).map((p) => {
+          const on = type === p.t && range === p.r && !fundId && !method
+          return (
+            <button key={p.title} type="button" onClick={() => { setType(p.t); setRange(p.r); setFundId(''); setMethod('') }}
+              className={cx('card flex items-center gap-4 p-4 text-left transition-colors', on ? 'border-accent bg-accent-soft/50' : 'hover:border-accent')}>
+              <span className={cx('size-12 rounded-[14px] grid place-items-center shrink-0', on ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent-ink')} aria-hidden>{p.icon}</span>
+              <span className="min-w-0">
+                <span className="block font-semibold leading-snug">{p.title}</span>
+                <span className="block text-muted text-[0.88rem]">{p.text}</span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       <div className="grid gap-5">
-        <Card className="no-print" title={tr('1. ¿Qué informe necesitas?', '1. Which report do you need?')}>
+        <Card className="no-print" title={tr('O arma tu propio informe: 1. ¿Qué necesitas ver?', 'Or build your own: 1. What do you need to see?')}>
           <div role="radiogroup" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {types.map((t) => (
               <button key={t.value} type="button" role="radio" aria-checked={type === t.value} onClick={() => setType(t.value)}
