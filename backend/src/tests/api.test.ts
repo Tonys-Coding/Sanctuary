@@ -6,7 +6,18 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 const geminiRequests: any[] = [];
+let retiredModel = '';
 const fakeGemini = http.createServer((req, res) => {
+  if (req.method === 'GET' && req.url?.startsWith('/models')) {
+    res.setHeader('content-type', 'application/json');
+    const m = (name: string, methods = ['generateContent']) => ({ name: `models/${name}`, supportedGenerationMethods: methods });
+    return void res.end(JSON.stringify({ models: [m('gemini-2.5-flash'), m('gemini-3.6-flash'), m('gemini-3.6-flash-lite'), m('gemini-3.9-flash-preview'), m('gemini-3.6-pro'), m('text-embedding-004', ['embedContent'])] }));
+  }
+  if (retiredModel && req.url?.includes(`/models/${retiredModel}:`)) {
+    res.statusCode = 404;
+    res.setHeader('content-type', 'application/json');
+    return void res.end(JSON.stringify({ error: { code: 404, message: `models/${retiredModel} is not found` } }));
+  }
   let raw = '';
   req.on('data', (c) => (raw += c));
   req.on('end', () => {
@@ -339,4 +350,16 @@ test('birthday greetings and upcoming celebrations', async () => {
   assert.deepEqual(soon.map((c) => [c.kind, c.in_days, c.years]), [['birthday', 4, 51], ['anniversary', 10, 11]]);
   assert.equal(upcomingCelebrations(rows, '2031-02-27')[0].date, '2031-02-28'); // Feb 29 falls on Feb 28
   assert.equal(upcomingCelebrations(rows, '2032-02-27')[0].date, '2032-02-29');
+});
+
+test('AI: a retired model is replaced by the newest stable Flash model, and the connection test reports it', async () => {
+  const before = (await a.get('/ai/status')).body.model;
+  retiredModel = before;
+  const r = await a.post('/ai/test');
+  assert.equal(r.status, 200);
+  assert.equal(r.body.ok, true);
+  assert.equal(r.body.model, 'gemini-3.6-flash'); // stable beats preview; lite, pro and embedding models are skipped
+  assert.ok(r.body.reply.length > 0);
+  assert.equal((await a.get('/ai/status')).body.model, 'gemini-3.6-flash');
+  retiredModel = '';
 });

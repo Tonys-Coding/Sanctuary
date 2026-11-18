@@ -1,0 +1,71 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "image": "screens/nuevo-miembro/es/0.png",
+      "target": {
+        "x": 17.46875,
+        "y": 286.03125,
+        "w": 261.21875,
+        "h": 52.4375
+      }
+    },
+    {
+      "image": "screens/nuevo-miembro/es/1.png",
+      "target": {
+        "x": 1214.09375,
+        "y": 129.015625,
+        "w": 199.6875,
+        "h": 52.4375
+      }
+    },
+    {
+      "image": "screens/nuevo-miembro/es/2.png",
+      "target": {
+        "x": 327.703125,
+        "y": 145.953125,
+        "w": 381.375,
+        "h": 48
+      }
+    },
+    {
+      "image": "screens/nuevo-miembro/es/3.png",
+      "target": {
+        "x": 327.703125,
+        "y": 420.640625,
+        "w": 784.59375,
+        "h": 48
+      }
+    },
+    {
+      "image": "screens/nuevo-miembro/es/4.png",
+      "target": {
+        "x": 327.703125,
+        "y": 289.875,
+        "w": 784.59375,
+        "h": 81.84375
+      }
+    },
+    {
+      "image": "screens/nuevo-miembro/es/5.png",
+      "target": {
+        "x": 1004.328125,
+        "y": 819.09375,
+        "w": 107.96875,
+        "h": 52.4375
+      }
+    },
+    {
+      "image": "screens/nuevo-miembro/es/6.png",
+      "target": {
+        "x": 323.375,
+        "y": 351.796875,
+        "w": 351.8125,
+        "h": 461.96875
+      }
+    }
+  ]
+}

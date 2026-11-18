@@ -2,9 +2,9 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { one, q } from '../db';
-import { env, features } from '../env';
+import { features } from '../env';
 import { HttpError, isoDate, parse, today } from '../http';
-import { ToolDef, converse, generate, generateJson } from '../lib/gemini';
+import { ToolDef, converse, currentModel, generate, generateJson } from '../lib/gemini';
 import { dashboard } from '../lib/analytics';
 import { buildReport, reportSpec } from '../lib/reports';
 import { fullName } from './members';
@@ -26,7 +26,19 @@ You are not a tax or legal adviser: for tax questions give general guidance and 
 }
 
 r.get('/status', (_req, res) => {
-  res.json({ enabled: features().ai, model: env.geminiModel });
+  res.json({ enabled: features().ai, model: currentModel() });
+});
+
+/** "Probar conexión": a tiny request that proves the key and model work, in plain words. */
+r.post('/test', async (req, res) => {
+  const started = Date.now();
+  const text = await generate({
+    system: 'You are a connection test. Reply with one short friendly sentence.',
+    contents: [{ role: 'user', parts: [{ text: req.user.language === 'en' ? 'Say hello to the church treasury team in English.' : 'Saluda al equipo de tesorería de la iglesia, en español.' }] }],
+    temperature: 0.5,
+    maxTokens: 200,
+  });
+  res.json({ ok: true, model: currentModel(), ms: Date.now() - started, reply: text });
 });
 
 // ─── Dashboard summary (cached per day) ──────────────────────────────────────

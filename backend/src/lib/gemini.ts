@@ -29,7 +29,29 @@ interface GenOptions {
   maxTokens?: number;
 }
 
-async function call(opts: GenOptions): Promise<Content> {
+/** The model actually in use: GEMINI_MODEL, or a replacement found when Google says that one does not exist. */
+let activeModel = env.geminiModel;
+export const currentModel = () => activeModel;
+
+/**
+ * Asks Google which models this key can use and picks the newest general "flash" model
+ * (not "lite", not preview/experimental when a stable one exists). Returns null if none.
+ */
+export async function pickAvailableModel(): Promise<string | null> {
+  const res = await fetch(`${env.geminiBaseUrl}/models?pageSize=200`, { headers: { 'x-goog-api-key': env.geminiKey }, signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) return null;
+  const data: any = await res.json().catch(() => ({}));
+  const usable = (data.models || [])
+    .filter((m: any) => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .map((m: any) => String(m.name).replace(/^models\//, ''))
+    .filter((n: string) => /^gemini-[\d.]+-flash/.test(n) && !/lite|image|tts|audio|live|thinking/.test(n));
+  const version = (n: string) => parseFloat(n.match(/^gemini-([\d.]+)/)![1]);
+  const unstable = (n: string) => /preview|exp/.test(n) ? 1 : 0;
+  usable.sort((a: string, b: string) => unstable(a) - unstable(b) || version(b) - version(a) || a.length - b.length);
+  return usable[0] || null;
+}
+
+async function call(opts: GenOptions, retried = false): Promise<Content> {
   if (!env.geminiKey) throw new HttpError(503, 'ai_not_configured');
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: opts.system }] },
@@ -45,7 +67,7 @@ async function call(opts: GenOptions): Promise<Content> {
   }
   let res: Response;
   try {
-    res = await fetch(`${env.geminiBaseUrl}/models/${encodeURIComponent(env.geminiModel)}:generateContent`, {
+    res = await fetch(`${env.geminiBaseUrl}/models/${encodeURIComponent(activeModel)}:generateContent`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': env.geminiKey },
       body: JSON.stringify(body),
@@ -62,7 +84,16 @@ async function call(opts: GenOptions): Promise<Content> {
     if (res.status === 429) throw new HttpError(429, 'ai_busy');
     if (res.status === 400 && /API key/i.test(message)) throw new HttpError(502, 'ai_bad_key');
     if (res.status === 401 || res.status === 403) throw new HttpError(502, 'ai_bad_key');
-    if (res.status === 404) throw new HttpError(502, 'ai_bad_model', env.geminiModel);
+    if (res.status === 404) {
+      // The configured model does not exist (renamed or retired): switch to the newest available one once.
+      const replacement = retried ? null : await pickAvailableModel().catch(() => null);
+      if (replacement && replacement !== activeModel) {
+        console.warn(`Gemini: el modelo "${activeModel}" no existe; usando "${replacement}". Cambia GEMINI_MODEL en backend/.env para fijarlo.`);
+        activeModel = replacement;
+        return call(opts, true);
+      }
+      throw new HttpError(502, 'ai_bad_model', activeModel);
+    }
     throw new HttpError(502, 'ai_failed');
   }
   const content = data?.candidates?.[0]?.content as Content | undefined;

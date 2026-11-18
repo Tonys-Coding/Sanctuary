@@ -6,7 +6,7 @@ import { api, download } from '../lib/api'
 import { useApp } from '../lib/app'
 import { fileUrl } from '../lib/api'
 import { useFunds } from '../lib/data'
-import { seriesColor } from '../lib/labels'
+import { seriesColor, useErrorText } from '../lib/labels'
 import type { Fund, Org, Theme } from '../lib/types'
 import { Avatar, AvatarPicker, Badge, Button, Card, Choice, ErrorNote, Field, IconButton, Modal, PageHeader, Spinner, Tabs, cx, useFeedback } from '../components/ui'
 import { Logo } from '../components/Layout'
@@ -349,11 +349,37 @@ function DataTab() {
 
 // ─── System ──────────────────────────────────────────────────────────────────
 
+/** Sends Gemini a tiny request and shows, in plain words, whether the key and model work. */
+function AiTest() {
+  const { tr } = useApp()
+  const errorText = useErrorText()
+  const qc = useQueryClient()
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<{ ok: true; model: string; ms: number; reply: string } | { ok: false; error: string } | null>(null)
+  const run = async () => {
+    setBusy(true); setResult(null)
+    try { setResult(await api.post('/ai/test')); qc.invalidateQueries({ queryKey: ['ai-status'] }) } catch (e) { setResult({ ok: false, error: errorText(e) }) } finally { setBusy(false) }
+  }
+  return (
+    <div className="mt-3">
+      <Button size="sm" icon={<Sparkles size={16} />} busy={busy} onClick={run}>{tr('Probar conexión', 'Test connection')}</Button>
+      {result && (result.ok ? (
+        <div className="mt-3 rounded-[11px] bg-good-soft text-good px-4 py-3">
+          <p className="font-semibold flex items-center gap-2"><CircleCheck size={18} />{tr(`Funciona. Respondió ${result.model} en ${(result.ms / 1000).toFixed(1)} s:`, `It works. ${result.model} answered in ${(result.ms / 1000).toFixed(1)} s:`)}</p>
+          <p className="mt-1 text-ink italic">«{result.reply}»</p>
+        </div>
+      ) : (
+        <p className="mt-3 rounded-[11px] bg-bad-soft text-bad px-4 py-3 flex items-start gap-2"><TriangleAlert size={18} className="shrink-0 mt-0.5" />{result.error}</p>
+      ))}
+    </div>
+  )
+}
+
 function SystemTab() {
   const { tr, session, date } = useApp()
   const ai = useQuery({ queryKey: ['ai-status'], queryFn: () => api.get<{ enabled: boolean; model: string }>('/ai/status') })
   const emails = useQuery({ queryKey: ['emails'], queryFn: () => api.get<any[]>('/org/emails') })
-  const row = (icon: ReactNode, title: string, on: boolean, yes: string, no: ReactNode) => (
+  const row = (icon: ReactNode, title: string, on: boolean, yes: ReactNode, no: ReactNode) => (
     <div className="flex gap-4 items-start">
       <span className={cx('size-11 rounded-full grid place-items-center shrink-0', on ? 'bg-good-soft text-good' : 'bg-raised text-muted')}>{icon}</span>
       <div className="flex-1">
@@ -368,7 +394,7 @@ function SystemTab() {
       <Card title={tr('Servicios conectados', 'Connected services')} hint={tr('Estos ajustes los hace quien instaló Sanctuary, en el archivo .env del servidor.', 'These are set by whoever installed Sanctuary, in the server’s .env file.')}>
         <div className="grid gap-6">
           {row(<Sparkles size={21} />, tr('Inteligencia artificial (Google Gemini)', 'Artificial intelligence (Google Gemini)'), !!session!.features.ai,
-            tr(`Resúmenes, asistente, explicación de informes y redacción de correos. Modelo: ${ai.data?.model || '…'}.`, `Summaries, assistant, report explanations and e-mail drafting. Model: ${ai.data?.model || '…'}.`),
+            <>{tr(`Resúmenes, asistente, explicación de informes y redacción de correos. Modelo: ${ai.data?.model || '…'}.`, `Summaries, assistant, report explanations and e-mail drafting. Model: ${ai.data?.model || '…'}.`)}<AiTest /></>,
             <>{tr('Pega tu clave en', 'Paste your key into')} {code('GEMINI_API_KEY=')} {tr('dentro de', 'inside')} {code('backend/.env')} {tr('y reinicia el servidor. La clave se consigue gratis en aistudio.google.com/apikey.', 'and restart the server. You can get a key for free at aistudio.google.com/apikey.')}</>)}
           {row(<Mail size={21} />, tr('Envío de correos (SMTP)', 'Sending e-mail (SMTP)'), !!session!.features.email,
             tr('Se pueden enviar informes, constancias y enlaces para restablecer contraseñas.', 'Reports, statements and password-reset links can be sent.'),

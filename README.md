@@ -33,7 +33,7 @@ The app is in **Spanish first**, with English one click away. It has light and d
 | **Asistente** (AI) | Ask questions in your own words ("which members haven't given in two months?") and get answers with real numbers from your data. |
 | **Mensajes** (SMS) | Text members through Twilio: choose recipients, use a template, see a preview and the SMS count, then send now or schedule a day and time (scheduled texts can be cancelled). Automatic birthday greetings go out every morning from 9:00. Texts only go to members marked as having agreed to receive them. |
 | **Actividad** | A log of who did what. Everyone on the team can change everything, so every change is recorded. |
-| **Ayuda** | Two video tutorials (recording an offering, the monthly report) in Spanish and English, plus short step-by-step guides for each real task (Sunday count, fixing a mistake, the board report, tax statements, inviting a helper, backups), each with a button to the right screen, plus a glossary. |
+| **Ayuda** | Six video tutorials in Spanish and English (recording an offering, the Sunday count, fixing or deleting an offering, adding a member, the monthly report, tax statements), plus short step-by-step guides for each real task (Sunday count, fixing a mistake, the board report, tax statements, inviting a helper, backups), each with a button to the right screen, plus a glossary. |
 | **Configuración** | Church details and logo, funds, team and invitation codes, your profile (photo, language, theme, password), CSV import with Spanish or English column names, and backups. |
 
 ### AI features (Google Gemini)
@@ -149,6 +149,7 @@ The videos on the Ayuda page are built with [Remotion](https://www.remotion.dev)
 ```bash
 cd tutorials && npm install
 npm run capture   # with the demo church running: takes the screenshots, in Spanish and English
+                  # (add video names to capture only some, e.g. npm run capture -- constancias)
 npm run render    # writes frontend/public/tutorials/*.mp4 and poster images
 npm run studio    # optional: preview and tweak the videos in the browser
 ```

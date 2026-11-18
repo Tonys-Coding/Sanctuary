@@ -1,0 +1,80 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "steps": [
+    {
+      "image": "screens/conteo-domingo/es/0.png",
+      "target": {
+        "x": 599.25,
+        "y": 225.140625,
+        "w": 262.765625,
+        "h": 131.125
+      }
+    },
+    {
+      "image": "screens/conteo-domingo/es/1.png",
+      "target": {
+        "x": 730.90625,
+        "y": 479.359375,
+        "w": 276.5,
+        "h": 48
+      }
+    },
+    {
+      "image": "screens/conteo-domingo/es/2.png",
+      "target": {
+        "x": 825,
+        "y": 702.953125,
+        "w": 182.40625,
+        "h": 52.4375
+      }
+    },
+    {
+      "image": "screens/conteo-domingo/es/3.png",
+      "target": {
+        "x": 358.140625,
+        "y": 479.046875,
+        "w": 639.03125,
+        "h": 51.46875
+      }
+    },
+    {
+      "image": "screens/conteo-domingo/es/4.png",
+      "target": {
+        "x": 350.59375,
+        "y": 478.0625,
+        "w": 150,
+        "h": 48
+      }
+    },
+    {
+      "image": "screens/conteo-domingo/es/5.png",
+      "target": {
+        "x": 1174.90625,
+        "y": 467.890625,
+        "w": 87.390625,
+        "h": 43.6875
+      }
+    },
+    {
+      "image": "screens/conteo-domingo/es/6.png",
+      "target": {
+        "x": 1081,
+        "y": 724.453125,
+        "w": 305.5625,
+        "h": 48.0625
+      }
+    },
+    {
+      "image": "screens/conteo-domingo/es/7.png",
+      "target": {
+        "x": 510.453125,
+        "y": 246.984375,
+        "w": 181.109375,
+        "h": 52.4375
+      }
+    }
+  ]
+}

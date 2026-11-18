@@ -10,13 +10,17 @@ interface Guide { id: string; icon: ReactNode; title: string; when: string; step
 function Videos() {
   const { tr, lang } = useApp()
   const videos = [
-    { id: 'registrar-ofrenda', title: tr('Cómo registrar una ofrenda', 'How to record an offering'), text: tr('Del botón naranja a «Guardar», en 7 pasos. 46 segundos.', 'From the orange button to “Save”, in 7 steps. 46 seconds.') },
-    { id: 'informe-mensual', title: tr('Cómo sacar el informe del mes', 'How to get the monthly report'), text: tr('Para la junta: verlo, revisarlo y descargarlo. 35 segundos.', 'For the board: open it, check it and download it. 35 seconds.') },
+    { id: 'registrar-ofrenda', title: tr('Cómo registrar una ofrenda', 'How to record an offering'), text: tr('Del botón naranja a «Guardar», en 7 pasos.', 'From the orange button to “Save”, in 7 steps.'), length: '0:46' },
+    { id: 'conteo-domingo', title: tr('Cómo contar las ofrendas del domingo', 'How to count Sunday’s offerings'), text: tr('Todos los sobres de un culto, el cuadre de efectivo y la hoja para firmar.', 'Every envelope from a service, the cash check and the sheet to sign.'), length: '0:52' },
+    { id: 'corregir-ofrenda', title: tr('Cómo corregir o borrar una ofrenda', 'How to fix or delete an offering'), text: tr('Buscarla, cambiarla, borrarla… y deshacerlo si te equivocas.', 'Find it, change it, delete it… and undo if you slip.'), length: '0:52' },
+    { id: 'nuevo-miembro', title: tr('Cómo agregar un miembro nuevo', 'How to add a new member'), text: tr('Sus datos, su correo para la constancia y el permiso para mensajes.', 'Their details, e-mail for statements and text-message consent.'), length: '0:46' },
+    { id: 'informe-mensual', title: tr('Cómo sacar el informe del mes', 'How to get the monthly report'), text: tr('Para la junta: verlo, revisarlo y descargarlo.', 'For the board: open it, check it and download it.'), length: '0:35' },
+    { id: 'constancias', title: tr('Cómo sacar las constancias de impuestos', 'How to get the tax statements'), text: tr('Revisar lo que falta y descargar una o todas.', 'Check what is missing and download one or all.'), length: '0:41' },
   ]
   return (
     <section aria-labelledby="videos" className="mb-6">
       <h2 id="videos" className="font-semibold text-[1.15rem] mb-3 flex items-center gap-2"><PlayCircle size={22} className="text-accent-ink" aria-hidden />{tr('Videotutoriales', 'Video tutorials')}</h2>
-      <div className="grid lg:grid-cols-2 gap-5">
+      <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-5">
         {videos.map((v) => (
           <article key={v.id} className="card overflow-hidden">
             <video key={`${v.id}-${lang}`} controls preload="none" playsInline className="w-full aspect-video bg-ink block"
@@ -24,7 +28,7 @@ function Videos() {
               <source src={`/tutorials/${v.id}.${lang}.mp4`} type="video/mp4" />
             </video>
             <div className="p-5">
-              <h3 className="font-semibold text-[1.08rem]">{v.title}</h3>
+              <h3 className="font-semibold text-[1.08rem] flex items-baseline justify-between gap-3">{v.title}<span className="text-muted text-[0.85rem] font-normal shrink-0">{v.length}</span></h3>
               <p className="text-muted">{v.text}</p>
             </div>
           </article>

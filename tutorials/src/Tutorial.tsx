@@ -1,19 +1,11 @@
 import { useEffect, useState } from 'react'
 import { AbsoluteFill, Easing, Img, continueRender, delayRender, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
 import { scripts, type Lang } from './script'
-import registrarEs from './data/registrar-ofrenda.es.json'
-import registrarEn from './data/registrar-ofrenda.en.json'
-import informeEs from './data/informe-mensual.es.json'
-import informeEn from './data/informe-mensual.en.json'
+import { captures } from './data'
 
 export type TutorialProps = { video: string; lang: Lang }
-interface Box { x: number; y: number; w: number; h: number }
-interface Capture { viewport: { width: number; height: number }; steps: { image: string; target: Box | null }[] }
+import type { Box } from './data'
 
-const captures: Record<string, Record<Lang, Capture>> = {
-  'registrar-ofrenda': { es: registrarEs, en: registrarEn },
-  'informe-mensual': { es: informeEs, en: informeEn },
-}
 
 // Timing (30 fps). Slow on purpose: the audience reads captions at their own pace.
 const INTRO = 105
@@ -68,11 +60,12 @@ function Cursor({ pressed }: { pressed: number }) {
 function TitleCard({ title, kicker, sub, opacity }: { title: string; kicker: string; sub: string; opacity: number }) {
   return (
     <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', opacity }}>
-      <div style={{ textAlign: 'center', background: 'rgba(255,253,248,.92)', border: `1px solid ${C.line}`, borderRadius: 36, padding: '64px 96px', boxShadow: '0 30px 80px -30px rgba(60,40,20,.45)' }}>
+      <div style={{ textAlign: 'center', maxWidth: 1640, background: 'rgba(255,253,248,.92)', border: `1px solid ${C.line}`, borderRadius: 36, padding: '64px 96px', boxShadow: '0 30px 80px -30px rgba(60,40,20,.45)' }}>
         <Img src={staticFile('brand/logo.svg')} style={{ width: 120, height: 120 }} />
         <div style={{ fontFamily: 'Figtree', fontWeight: 700, letterSpacing: 4, textTransform: 'uppercase', color: C.accent, fontSize: 26, marginTop: 20 }}>{kicker}</div>
-        <div style={{ fontFamily: 'Young Serif', fontSize: 84, color: C.ink, marginTop: 14, lineHeight: 1.1 }}>{title}</div>
-        <div style={{ fontFamily: 'Figtree', fontSize: 34, color: C.soft, marginTop: 22, maxWidth: 1100 }}>{sub}</div>
+        {/* Long titles get a smaller size so the card always fits inside the frame. */}
+        <div style={{ fontFamily: 'Young Serif', fontSize: Math.min(84, Math.floor(1380 / (title.length * 0.56))), color: C.ink, marginTop: 14, lineHeight: 1.1 }}>{title}</div>
+        <div style={{ fontFamily: 'Figtree', fontSize: 34, color: C.soft, margin: '22px auto 0', maxWidth: 1100, textAlign: 'center' }}>{sub}</div>
       </div>
     </AbsoluteFill>
   )

@@ -30,7 +30,7 @@ if (process.argv.includes('--finish-only')) {
 }
 
 const serveUrl = await bundle({ entryPoint: path.join(here, 'src', 'index.ts'), publicDir: path.join(here, 'public') })
-for (const id of ['registrar-ofrenda', 'informe-mensual']) {
+for (const id of ['registrar-ofrenda', 'informe-mensual', 'conteo-domingo', 'nuevo-miembro', 'corregir-ofrenda', 'constancias']) {
   if (only.length && !only.includes(id)) continue
   for (const lang of ['es', 'en']) {
     const inputProps = { video: id, lang }
