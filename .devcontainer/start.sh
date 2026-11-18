@@ -17,6 +17,14 @@ if [ "${1:-}" = "--reiniciar" ] || [ "${1:-}" = "--restart" ]; then
   RESTART=1
 fi
 
+# A lockfile changed by hand (usually by running "npm install") blocks "git pull". Say how to fix it.
+if ! git diff --quiet -- backend/package-lock.json frontend/package-lock.json 2>/dev/null; then
+  echo "⚠ Hay cambios locales en package-lock.json que impiden actualizar con «git pull»."
+  echo "  Normalmente los hace «npm install» y se pueden descartar sin problema:"
+  echo "    git checkout -- backend/package-lock.json frontend/package-lock.json"
+  echo ""
+fi
+
 # If the first-time setup never finished, do it now; otherwise just check .env and the database.
 if [ ! -d backend/node_modules ] || [ ! -d frontend/node_modules ]; then
   echo "▸ La instalación inicial no se completó; ejecutándola ahora…"
@@ -26,7 +34,9 @@ else
   for dir in backend frontend; do
     if [ "$dir/package-lock.json" -nt "$dir/node_modules/.package-lock.json" ]; then
       echo "▸ Instalando paquetes nuevos en $dir…"
-      (cd "$dir" && npm install --no-audit --no-fund >/dev/null) || { echo "✖ No se pudieron instalar los paquetes de $dir."; exit 1; }
+      # npm ci installs exactly what the lockfile lists and never rewrites it (npm install can,
+      # which then blocks the next "git pull").
+      (cd "$dir" && npm ci --no-audit --no-fund >/dev/null) || { echo "✖ No se pudieron instalar los paquetes de $dir."; exit 1; }
       [ "$dir" = backend ] && pkill -f "$PWD/backend/node_modules/" 2>/dev/null
       [ "$dir" = frontend ] && pkill -f "$PWD/frontend/node_modules/.bin/vite" 2>/dev/null
     fi
