@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { api, ApiError } from './api'
+import { api, ApiError, setSessionLostHandler } from './api'
 import type { Lang, Session, Theme } from './types'
 
 interface AppState {
@@ -70,6 +70,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [setSession])
 
   useEffect(() => { refresh().finally(() => setLoading(false)) }, [refresh])
+
+  // If the session stops being valid while the app is open, go back to the sign-in page
+  // instead of showing screens whose data can no longer load.
+  useEffect(() => {
+    setSessionLostHandler(() => { qc.clear(); setSessionState(null) })
+    return () => setSessionLostHandler(null)
+  }, [qc])
 
   const setLang = useCallback((l: Lang) => {
     setLangState(l); store('sanctuary.lang', l)

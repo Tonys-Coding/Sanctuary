@@ -11,6 +11,10 @@ export class ApiError extends Error {
   }
 }
 
+/** Called when the server says the session is no longer valid (signed out elsewhere, account removed…). */
+let onSessionLost: (() => void) | null = null
+export const setSessionLostHandler = (fn: (() => void) | null) => { onSessionLost = fn }
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const isForm = body instanceof FormData
   let res: Response
@@ -25,6 +29,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError(0, 'network')
   }
   if (!res.ok) {
+    if (res.status === 401 && !path.startsWith('/auth/')) onSessionLost?.()
     const data = await res.json().catch(() => ({}))
     throw new ApiError(res.status, data.error || 'server_error', data.detail)
   }

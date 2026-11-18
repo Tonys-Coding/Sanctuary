@@ -3,9 +3,19 @@
 # Runs automatically when the codespace starts; safe to run again by hand at any time:
 #   bash .devcontainer/start.sh
 # Logs: /tmp/sanctuary-api.log and /tmp/sanctuary-web.log
+#   bash .devcontainer/start.sh --reiniciar   → stops everything, clears the app's cache and starts fresh
 cd "$(dirname "$0")/.."
 ROOT=$PWD
 rm -f /tmp/sanctuary-env-changed
+
+if [ "${1:-}" = "--reiniciar" ] || [ "${1:-}" = "--restart" ]; then
+  echo "▸ Deteniendo la API y la aplicación…"
+  pkill -f "$ROOT/backend/node_modules/" 2>/dev/null
+  pkill -f "$ROOT/frontend/node_modules/.bin/vite" 2>/dev/null
+  rm -rf frontend/node_modules/.vite
+  sleep 1
+  RESTART=1
+fi
 
 # If the first-time setup never finished, do it now; otherwise just check .env and the database.
 if [ ! -d backend/node_modules ] || [ ! -d frontend/node_modules ]; then
@@ -65,6 +75,18 @@ FAILED=0
 launch "API" backend /tmp/sanctuary-api.log 5001 api_ok "$API_PROCS"
 # --host 0.0.0.0 so Codespaces' port forwarding can reach it; --strictPort so it never drifts to 5174.
 launch "Aplicación" frontend /tmp/sanctuary-web.log 5173 app_ok "$APP_PROCS" --host 0.0.0.0 --port 5173 --strictPort
+
+if [ -n "${RESTART:-}" ] || [ "$FAILED" != 0 ]; then
+  echo ""
+  echo "── Diagnóstico (copia esto si algo sigue fallando) ──"
+  echo "  versión:     $(git log --oneline -1 2>/dev/null)"
+  echo "  node:        $(node -v)"
+  echo "  API /health: $(curl -s --max-time 3 http://127.0.0.1:5001/api/health || echo 'sin respuesta')"
+  echo "  app :5173:   HTTP $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:5173/)"
+  echo "  módulo main: HTTP $(curl -s -o /dev/null -w '%{http_code}' --max-time 20 http://127.0.0.1:5173/src/main.tsx)"
+  echo "  últimas líneas de la API:"; tail -n 4 /tmp/sanctuary-api.log 2>/dev/null | sed 's/^/    /'
+  echo "  últimas líneas de la aplicación:"; tail -n 4 /tmp/sanctuary-web.log 2>/dev/null | sed 's/^/    /'
+fi
 
 if [ "$FAILED" = 0 ]; then
   echo ""
