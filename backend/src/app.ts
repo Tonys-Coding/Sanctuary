@@ -24,13 +24,21 @@ export function createApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
 
-  // The session cookie is SameSite=Lax; additionally refuse state-changing requests from other origins.
+  // The session cookie is SameSite=Lax; additionally refuse state-changing requests from other sites.
   app.use('/api', (req, _res, next) => {
-    const origin = req.get('origin');
-    if (origin && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-      const host = req.get('x-forwarded-host') || req.get('host');
-      let ok = false;
-      try { ok = new URL(origin).host === host || origin === env.appUrl; } catch { /* malformed origin */ }
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      // Modern browsers say themselves whether a request comes from the same site. Proxies
+      // (Codespaces, the Vite dev server, hosting platforms) rewrite Host but leave this alone.
+      const site = req.get('sec-fetch-site');
+      const origin = req.get('origin');
+      let ok: boolean;
+      if (site) ok = site === 'same-origin' || site === 'none';
+      else if (!origin) ok = true; // not a browser cross-site request (curl, server-to-server)
+      else {
+        // Older browsers: fall back to comparing the Origin with this server's address.
+        const host = req.get('x-forwarded-host') || req.get('host');
+        try { ok = new URL(origin).host === host || origin === env.appUrl; } catch { ok = false; }
+      }
       if (!ok) throw new HttpError(403, 'forbidden');
     }
     next();

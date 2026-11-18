@@ -239,3 +239,14 @@ test('CSV import accepts Spanish headers, day-first dates and creates what is mi
   assert.equal(list.rows[0].amount, 1250.5);
   assert.equal(list.rows[0].method, 'check');
 });
+
+test('requests from other websites are refused, even behind proxies that rewrite the Host', async () => {
+  const login = (headers: Record<string, string>) =>
+    fetch(base + '/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ email: 'ana@a.test', password: 'password-a1' }) }).then((r) => r.status);
+  // Codespaces / dev proxy: Host says localhost, the browser's Origin is the public URL.
+  assert.equal(await login({ host: 'localhost:5173', origin: 'https://abc-5173.app.github.dev', 'sec-fetch-site': 'same-origin' }), 200);
+  assert.equal(await login({ origin: 'https://evil.example', 'sec-fetch-site': 'cross-site' }), 403);
+  assert.equal(await login({ origin: 'https://other-5173.app.github.dev', 'sec-fetch-site': 'same-site' }), 403);
+  // Browsers without Sec-Fetch-Site: Origin must match the server's own address.
+  assert.equal(await login({ origin: 'https://evil.example' }), 403);
+});
