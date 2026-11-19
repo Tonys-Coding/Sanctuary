@@ -40,6 +40,7 @@ export const api = {
   get: <T = any>(path: string) => request<T>('GET', path),
   post: <T = any>(path: string, body?: unknown) => request<T>('POST', path, body ?? {}),
   patch: <T = any>(path: string, body?: unknown) => request<T>('PATCH', path, body ?? {}),
+  put: <T = any>(path: string, body?: unknown) => request<T>('PUT', path, body ?? {}),
   del: <T = any>(path: string) => request<T>('DELETE', path),
   upload: <T = any>(path: string, file: File) => {
     const form = new FormData()
@@ -71,7 +72,9 @@ export function saveBlob(blob: Blob, filename: string) {
 
 /** Downloads a generated file (PDF / CSV) from a GET or POST endpoint. */
 export async function download(path: string, filename: string, body?: unknown) {
-  const blob = body === undefined ? await api.get<Blob>(path) : await api.post<Blob>(path, body)
+  const data = body === undefined ? await api.get<unknown>(path) : await api.post<unknown>(path, body)
+  // JSON answers (backups) arrive already parsed: turn them back into a file.
+  const blob = data instanceof Blob ? data : new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' })
   saveBlob(blob, filename)
 }
 

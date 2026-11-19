@@ -39,7 +39,8 @@ export function Legend({ items }: { items: { key: string; label: string; color: 
 }
 
 /** This year's months as a filled line with last year behind it; can switch to a running total. */
-export function MonthlyChart({ data, year, upTo }: { data: { label: string; total: number; previous: number }[]; year: number; upTo: number }) {
+export function MonthlyChart({ data, year, prevLabel, upTo }: { data: { label: string; total: number; previous: number }[]; year: number | string; prevLabel?: string; upTo: number }) {
+  const prev = prevLabel ?? String(Number(year) - 1)
   const { money, tr } = useApp()
   const [mode, setMode] = useState<'month' | 'sum'>('month')
   const runningSum = (vals: number[]) => vals.map((_, i) => vals.slice(0, i + 1).reduce((s, v) => s + v, 0))
@@ -57,7 +58,7 @@ export function MonthlyChart({ data, year, upTo }: { data: { label: string; tota
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <Legend items={[
           { key: 'a', label: String(year), color: 'var(--chart-main)', dashed: true },
-          ...(hasPrev ? [{ key: 'b', label: String(year - 1), color: 'var(--chart-ghost)', dashed: true }] : []),
+          ...(hasPrev ? [{ key: 'b', label: prev, color: 'var(--chart-ghost)', dashed: true }] : []),
         ]} />
         <Tabs value={mode} onChange={setMode} options={[{ value: 'month', label: tr('Cada mes', 'Each month') }, { value: 'sum', label: tr('Acumulado del año', 'Year to date') }]} />
       </div>
@@ -80,7 +81,7 @@ export function MonthlyChart({ data, year, upTo }: { data: { label: string; tota
                 const p = payload[0].payload as { total: number | null; previous: number }
                 return <TipBox title={mode === 'sum' ? `${tr('Hasta', 'Through')} ${label}` : label} rows={[
                   ...(p.total != null ? [{ key: 'a', label: String(year), value: money(p.total), color: 'var(--chart-main)' }] : []),
-                  ...(hasPrev ? [{ key: 'b', label: String(year - 1), value: money(p.previous), color: 'var(--chart-ghost)' }] : []),
+                  ...(hasPrev ? [{ key: 'b', label: prev, value: money(p.previous), color: 'var(--chart-ghost)' }] : []),
                 ]} />
               }}
             />
@@ -287,14 +288,14 @@ export function Sparkline({ values, height = 36, className, label }: { values: n
 }
 
 /** Circular progress for goals. */
-export function Ring({ value, target, size = 76 }: { value: number; target: number; size?: number }) {
+export function Ring({ value, target, size = 76, label }: { value: number; target: number; size?: number; label?: string }) {
   const pct = target > 0 ? Math.min(value / target, 1) : 0
   const stroke = 8
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const done = value >= target
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }} role="progressbar" aria-valuenow={Math.round(pct * 100)} aria-valuemin={0} aria-valuemax={100}>
+    <div className="relative shrink-0" style={{ width: size, height: size }} role="progressbar" aria-valuenow={Math.round(pct * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={label ?? `${Math.round(pct * 100)}%`}>
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--raised)" strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={done ? 'var(--good)' : 'var(--chart-main)'} strokeWidth={stroke}
@@ -305,10 +306,10 @@ export function Ring({ value, target, size = 76 }: { value: number; target: numb
   )
 }
 
-export function ProgressBar({ value, target }: { value: number; target: number }) {
+export function ProgressBar({ value, target, label }: { value: number; target: number; label?: string }) {
   const pct = target > 0 ? Math.min((value / target) * 100, 100) : 0
   return (
-    <div className="h-2.5 rounded-full bg-raised overflow-hidden" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+    <div className="h-2.5 rounded-full bg-raised overflow-hidden" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={label ?? `${Math.round(pct)}%`}>
       <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${pct}%`, background: pct >= 100 ? 'var(--good)' : 'var(--chart-main)' }} />
     </div>
   )

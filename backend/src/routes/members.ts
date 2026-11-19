@@ -48,7 +48,7 @@ r.get('/', async (req, res) => {
             COALESCE(s.count, 0) AS offering_count, s.last_date
      FROM members m
      LEFT JOIN (
-       SELECT member_id, sum(amount) FILTER (WHERE date >= fy_start($1)) AS total_year,
+       SELECT member_id, sum(amount) FILTER (WHERE date >= (SELECT fy_start($1))) AS total_year,
               sum(amount) AS total_all, count(*) AS count, max(date) AS last_date
        FROM offerings WHERE org_id = $1 GROUP BY member_id
      ) s ON s.member_id = m.id
@@ -59,10 +59,10 @@ r.get('/', async (req, res) => {
   );
   // Last 12 months per member, for the small trend line and "gave in X of 12 months" on each card.
   const months = await q(
-    `SELECT member_id, (extract(year FROM age(date_trunc('month', org_today($1)), date_trunc('month', date))) * 12
-              + extract(month FROM age(date_trunc('month', org_today($1)), date_trunc('month', date))))::int AS ago,
+    `SELECT member_id, (extract(year FROM age(date_trunc('month', (SELECT org_today($1))), date_trunc('month', date))) * 12
+              + extract(month FROM age(date_trunc('month', (SELECT org_today($1))), date_trunc('month', date))))::int AS ago,
             sum(amount) AS total
-     FROM offerings WHERE org_id = $1 AND member_id IS NOT NULL AND date >= date_trunc('month', org_today($1)) - interval '11 months'
+     FROM offerings WHERE org_id = $1 AND member_id IS NOT NULL AND date >= date_trunc('month', (SELECT org_today($1))) - interval '11 months'
      GROUP BY 1, 2`,
     [req.user.orgId],
   );
@@ -185,13 +185,13 @@ r.get('/:id', async (req, res) => {
   const [stats, monthly, byFund, yearly] = await Promise.all([
     one(
       `SELECT COALESCE(sum(amount),0) AS total_all, count(*) AS count, COALESCE(avg(amount),0) AS average,
-              COALESCE(sum(amount) FILTER (WHERE date >= fy_start($1)),0) AS total_year,
-              COALESCE(sum(amount) FILTER (WHERE date >= (fy_start($1) - interval '1 year') AND date < fy_start($1)),0) AS total_last_year,
+              COALESCE(sum(amount) FILTER (WHERE date >= (SELECT fy_start($1))),0) AS total_year,
+              COALESCE(sum(amount) FILTER (WHERE date >= ((SELECT fy_start($1)) - interval '1 year') AND date < (SELECT fy_start($1))),0) AS total_last_year,
               min(date) AS first_date, max(date) AS last_date, COALESCE(max(amount),0) AS largest
        FROM offerings WHERE org_id = $1 AND member_id = $2`, args),
     q(
       `SELECT to_char(g.month, 'YYYY-MM') AS month, COALESCE(sum(o.amount), 0) AS total
-       FROM generate_series(date_trunc('month', org_today($1)) - interval '11 months', date_trunc('month', org_today($1)), interval '1 month') AS g(month)
+       FROM generate_series(date_trunc('month', (SELECT org_today($1))) - interval '11 months', date_trunc('month', (SELECT org_today($1))), interval '1 month') AS g(month)
        LEFT JOIN offerings o ON o.org_id = $1 AND o.member_id = $2 AND date_trunc('month', o.date) = g.month
        GROUP BY g.month ORDER BY g.month`, args),
     q(

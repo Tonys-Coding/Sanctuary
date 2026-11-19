@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Lock, Pencil, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
@@ -30,7 +30,7 @@ export function OfferingTable({ rows, hideMember, hideDate, groupByDay, more }: 
         label: tr('Deshacer', 'Undo'),
         run: async () => {
           try {
-            await api.post('/offerings', { member_id: o.member_id, fund_id: o.fund_id, batch_id: o.batch_id, amount: o.amount, date: o.date, method: o.method, check_number: o.check_number, notes: o.notes })
+            await api.post('/offerings', { member_id: o.member_id, fund_id: o.fund_id, batch_id: o.batch_id, amount: o.amount, date: o.date, method: o.method, check_number: o.check_number, notes: o.notes, goods_value: o.goods_value })
             await qc.invalidateQueries()
             toast(tr('Ofrenda recuperada', 'Offering restored'))
           } catch (e) { fail(e) }
@@ -41,7 +41,7 @@ export function OfferingTable({ rows, hideMember, hideDate, groupByDay, more }: 
 
   const cols = 4 + (hideMember ? 0 : 1) + (hideDate || groupByDay ? 0 : 1)
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto relative">
       <table className="w-full border-collapse min-w-[560px]">
         <thead>
           <tr className="border-b border-line">
@@ -50,7 +50,7 @@ export function OfferingTable({ rows, hideMember, hideDate, groupByDay, more }: 
             <Th>{tr('Fondo', 'Fund')}</Th>
             <Th>{tr('Método', 'Method')}</Th>
             <Th right>{tr('Monto', 'Amount')}</Th>
-            <Th className="w-24 no-print" />
+            <Th className="w-24 no-print"><span className="sr-only">{tr('Acciones', 'Actions')}</span></Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
@@ -87,8 +87,13 @@ export function OfferingTable({ rows, hideMember, hideDate, groupByDay, more }: 
               <Td className="text-ink-soft whitespace-nowrap">{labels.method(o.method)}{o.check_number ? ` #${o.check_number}` : ''}</Td>
               <Td right className="font-semibold whitespace-nowrap">{money(o.amount)}</Td>
               <Td right className="no-print whitespace-nowrap !py-1">
-                <IconButton label={tr('Editar', 'Edit')} onClick={() => edit({ offering: o })}><Pencil size={18} /></IconButton>
-                <IconButton label={tr('Eliminar', 'Delete')} onClick={() => remove(o)}><Trash2 size={18} /></IconButton>
+                {o.batch_status === 'closed'
+                  ? <span className="inline-grid place-items-center size-11 text-muted" title={tr('Conteo cerrado: reábrelo para cambiar esta ofrenda', 'Closed count: reopen it to change this offering')}><Lock size={17} aria-label={tr('Conteo cerrado', 'Closed count')} /></span>
+                  : <>
+                    <IconButton label={tr('Editar', 'Edit')} onClick={() => edit({ offering: o })}><Pencil size={18} /></IconButton>
+                    <IconButton label={tr('Eliminar', 'Delete')} onClick={() => remove(o)}><Trash2 size={18} /></IconButton>
+                  </>}
+                {o.goods_value > 0 && <span className="sr-only">{tr('Incluye bienes recibidos', 'Includes goods received')}</span>}
               </Td>
             </tr>
           </Fragment>))}

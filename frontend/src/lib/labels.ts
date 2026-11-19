@@ -24,7 +24,31 @@ export function useErrorText() {
   const { tr } = useApp()
   return (e: unknown): string => {
     const code = e instanceof ApiError ? e.code : 'server_error'
+    const detail = (e instanceof ApiError ? e.detail : null) as any
     const map: Record<string, string> = {
+      batch_closed: tr(`Este conteo ya está cerrado${detail?.name ? ` («${detail.name}»)` : ''}. Para cambiarlo, ábrelo y usa «Reabrir conteo» explicando el motivo.`, `This count is already closed${detail?.name ? ` (“${detail.name}”)` : ''}. To change it, open it and use “Reopen count” with a reason.`),
+      batch_deposited: tr('El dinero de este conteo ya se depositó en el banco, así que no se puede reabrir. Si hay un error, regístralo con una ofrenda o un gasto de ajuste.', 'This count’s money is already deposited, so it cannot be reopened. If there is a mistake, record an adjusting offering or expense.'),
+      reopen_reason_required: tr('Escribe por qué se reabre el conteo. Queda guardado en la actividad.', 'Write why the count is being reopened. It is kept in the activity log.'),
+      envelope_taken: tr(`El sobre n.º ${detail?.envelope ?? ''} ya lo tiene ${detail?.name ?? 'otro miembro'}. Usa otro número.`, `Envelope no. ${detail?.envelope ?? ''} already belongs to ${detail?.name ?? 'another member'}. Use another number.`),
+      backup_invalid: tr('Ese archivo no es una copia de seguridad de Sanctuary.', 'That file is not a Sanctuary backup.'),
+      restore_confirm: tr('Para restaurar escribe la palabra RESTAURAR.', 'To restore, type the word RESTORE.'),
+      batch_not_closed: tr('Solo se pueden depositar conteos cerrados. Cierra el conteo primero.', 'Only closed counts can be deposited. Close the count first.'),
+      batch_already_deposited: tr('Uno de esos conteos ya está en otro depósito.', 'One of those counts is already in another deposit.'),
+      deposit_needs_batches: tr('Elige al menos un conteo para el depósito.', 'Choose at least one count for the deposit.'),
+      deposit_locked: tr('Este depósito ya se llevó al banco y no se puede cambiar. Márcalo como «Por depositar» primero si fue un error.', 'This deposit already went to the bank and cannot be changed. Mark it “To deposit” first if it was a mistake.'),
+      bank_amount_required: tr('Escribe cuánto aparece en el estado de cuenta del banco.', 'Enter the amount shown on the bank statement.'),
+      reconcile_note_required: tr(`El banco no coincide con el depósito${detail?.difference != null ? ` (diferencia de ${detail.difference})` : ''}. Escribe una nota explicando la diferencia.`, `The bank does not match the deposit${detail?.difference != null ? ` (difference of ${detail.difference})` : ''}. Write a note explaining the difference.`),
+      invalid_batch: tr('Uno de los conteos no es válido.', 'One of the counts is not valid.'),
+      invalid_category: tr('Elige una categoría de gasto.', 'Choose an expense category.'),
+      invalid_fund: tr('Elige un fondo válido.', 'Choose a valid fund.'),
+      invalid_member: tr('Uno de los miembros no es válido.', 'One of the members is not valid.'),
+      category_in_use: tr('Esta categoría ya tiene gastos. Puedes archivarla en lugar de eliminarla.', 'This category already has expenses. You can archive it instead of deleting it.'),
+      file_not_receipt: tr('El recibo debe ser una foto (JPG, PNG) o un PDF.', 'The receipt must be a photo (JPG, PNG) or a PDF.'),
+      board_emails_required: tr('Escribe al menos un correo de la junta.', 'Enter at least one board e-mail.'),
+      ai_disabled: tr('La IA está apagada para esta iglesia. Puedes encenderla en Configuración.', 'AI is turned off for this church. You can turn it on in Settings.'),
+      member_no_email: tr('Este miembro no tiene correo electrónico.', 'This member has no e-mail address.'),
+      member_no_sms: tr('Este miembro no tiene un celular válido o no aceptó recibir mensajes.', 'This member has no valid mobile number or has not agreed to receive texts.'),
+      link_invalid: tr('Este enlace ya no es válido. Pide uno nuevo a la tesorería de tu iglesia.', 'This link is no longer valid. Ask your church treasury for a new one.'),
       network: tr('No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.', 'Cannot reach the server. Check your connection and try again.'),
       server_error: tr('Algo salió mal de nuestro lado. Inténtalo de nuevo en un momento.', 'Something went wrong on our side. Please try again in a moment.'),
       unauthenticated: tr('Tu sesión terminó. Vuelve a entrar.', 'Your session ended. Please sign in again.'),

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ClipboardList, DatabaseBackup, FileText, HandCoins, Landmark, MessageSquareText, Pencil, PlayCircle, Sparkles, UserPlus, Users } from 'lucide-react'
+import { ChevronDown, ClipboardList, CloudOff, DatabaseBackup, Link2, PiggyBank, Receipt, Scale, Upload, FileText, HandCoins, Landmark, MessageSquareText, Pencil, PlayCircle, Sparkles, UserPlus, Users } from 'lucide-react'
 import { useApp } from '../lib/app'
 import { Button, Card, PageHeader, cx } from '../components/ui'
 
@@ -147,12 +147,73 @@ export default function Help() {
       ],
     },
     {
-      id: 'respaldo', icon: <DatabaseBackup size={24} />, title: tr('Guardar una copia de seguridad', 'Keep a backup'),
-      when: tr('Una vez al mes es buena costumbre.', 'Once a month is a good habit.'),
+      id: 'respaldo', icon: <DatabaseBackup size={24} />, title: tr('Copias de seguridad y cómo regresar a una', 'Backups and how to go back to one'),
+      when: tr('Sanctuary guarda una copia cada día; tú puedes guardar otras cuando quieras.', 'Sanctuary keeps a copy every day; you can keep more whenever you like.'),
       to: '/configuracion?tab=datos', cta: tr('Ir a Importar y respaldar', 'Go to Import & backup'),
       steps: [
-        <>{tr('Ve a', 'Go to')} {b(tr('Configuración → Importar y respaldar', 'Settings → Import & backup'))} {tr('y pulsa', 'and press')} {b(tr('Copia completa', 'Full backup'))}.</>,
-        <>{tr('Guarda el archivo en una memoria USB o en la nube (Google Drive, OneDrive…).', 'Save the file on a USB drive or in the cloud (Google Drive, OneDrive…).')}</>,
+        <>{tr('Ve a', 'Go to')} {b(tr('Configuración → Importar y respaldar', 'Settings → Import & backup'))}. {tr('En', 'Under')} {b(tr('Copias de seguridad en el servidor', 'Backups on the server'))} {tr('verás las copias automáticas de cada día.', 'you will see the automatic daily copies.')}</>,
+        <>{tr('Pulsa', 'Press')} {b(tr('Crear copia ahora', 'Back up now'))} {tr('antes de un cambio grande, o', 'before a big change, or')} {b(tr('Descargar', 'Download'))} {tr('para guardarla en una memoria USB o en la nube.', 'to keep it on a USB drive or in the cloud.')}</>,
+        <>{tr('Si algo salió mal, pulsa', 'If something went wrong, press')} {b(tr('Volver a esta copia', 'Restore this copy'))} {tr('y escribe RESTAURAR. Antes de hacerlo, Sanctuary guarda una copia de lo que hay ahora.', 'and type RESTORE. Before doing it, Sanctuary saves a copy of what is there now.')}</>,
+      ],
+    },
+    {
+      id: 'deposito', icon: <PiggyBank size={24} />, title: tr('Llevar el dinero al banco', 'Take the money to the bank'),
+      when: tr('Después de cerrar uno o varios conteos.', 'After closing one or more counts.'),
+      to: '/depositos', cta: tr('Ir a Depósitos', 'Go to Deposits'),
+      steps: [
+        <>{tr('Cierra el conteo del culto (botón', 'Close the service count (the')} {b(tr('Cerrar conteo', 'Close count'))}{tr('). Un conteo cerrado queda protegido: para cambiarlo hay que reabrirlo y explicar por qué.', ' button). A closed count is protected: to change it you must reopen it and explain why.')}</>,
+        <>{tr('Ve a', 'Go to')} {b(tr('Depósitos', 'Deposits'))}, {tr('pulsa', 'press')} {b(tr('Nuevo depósito', 'New deposit'))} {tr('y elige los conteos que llevas.', 'and choose the counts you are taking.')}</>,
+        <>{tr('Pulsa', 'Press')} {b(tr('Hoja para el banco', 'Bank slip'))}: {tr('trae el efectivo por billete y cada cheque. Imprímela y llévala con el dinero.', 'it lists cash by bill and each check. Print it and take it with the money.')}</>,
+        <>{tr('Al volver, pulsa', 'When you are back, press')} {b(tr('Ya lo llevé al banco', 'I took it to the bank'))}. {tr('Cuando llegue el estado de cuenta, escribe lo que registró el banco y pulsa', 'When the bank statement arrives, enter what the bank recorded and press')} {b(tr('Marcar como conciliado', 'Mark as reconciled'))}.</>,
+      ],
+    },
+    {
+      id: 'gastos', icon: <Receipt size={24} />, title: tr('Registrar un gasto y su recibo', 'Record an expense and its receipt'),
+      when: tr('Cada vez que la iglesia paga algo.', 'Every time the church pays for something.'),
+      to: '/gastos', cta: tr('Ir a Gastos', 'Go to Expenses'),
+      steps: [
+        <>{tr('Ve a', 'Go to')} {b(tr('Gastos y presupuesto', 'Expenses & budget'))} {tr('y pulsa', 'and press')} {b(tr('Registrar gasto', 'Record expense'))}.</>,
+        <>{tr('Escribe a quién se pagó, el monto y la categoría. Si ya le pagaste antes, Sanctuary recuerda su categoría.', 'Enter who was paid, the amount and the category. If you paid them before, Sanctuary remembers the category.')}</>,
+        <>{tr('En', 'Under')} {b(tr('Recibo o factura', 'Receipt or invoice'))} {tr('toma una foto del recibo con el teléfono o sube el PDF.', 'take a photo of the receipt with your phone or upload the PDF.')}</>,
+        <>{tr('En la pestaña', 'On the')} {b(tr('Presupuesto', 'Budget'))} {tr('escribe cuánto planean gastar en el año y verás cuánto queda en cada categoría.', 'tab, enter how much you plan to spend this year and you will see what is left in each category.')}</>,
+      ],
+    },
+    {
+      id: 'tesoreria', icon: <Scale size={24} />, title: tr('El informe de tesorería del mes', 'The monthly treasurer’s report'),
+      when: tr('Saldo inicial, ingresos, gastos y saldo final, listo para la junta.', 'Opening balance, income, expenses and closing balance, ready for the board.'),
+      to: '/informes?preset=tesoreria', cta: tr('Ver el informe del mes pasado', 'See last month’s report'),
+      steps: [
+        <>{tr('Una sola vez: en', 'Once: in')} {b(tr('Configuración → Finanzas', 'Settings → Finances'))} {tr('anota cuánto había en el banco el día que empezaron a usar Sanctuary.', 'enter how much was in the bank the day you started using Sanctuary.')}</>,
+        <>{tr('Ve a', 'Go to')} {b(tr('Informes', 'Reports'))} {tr('y pulsa', 'and press')} {b(tr('Tesorería del mes pasado', 'Last month’s treasury'))}.</>,
+        <>{tr('Para que llegue solo a la junta cada mes, activa', 'To have it reach the board by itself each month, turn on')} {b(tr('Informe mensual a la junta', 'Monthly report to the board'))} {tr('en Configuración → Finanzas.', 'in Settings → Finances.')}</>,
+      ],
+    },
+    {
+      id: 'enlinea', icon: <Upload size={24} />, title: tr('Agregar las ofrendas de Zelle y en línea', 'Add Zelle and online gifts'),
+      when: tr('Una vez al mes, con el archivo del banco o del servicio de ofrendas.', 'Once a month, with the file from the bank or giving service.'),
+      to: '/configuracion?tab=datos', cta: tr('Ir a Importar y respaldar', 'Go to Import & backup'),
+      steps: [
+        <>{tr('En el sitio del banco (o de Tithe.ly, Square, PayPal) busca', 'On the bank’s site (or Tithe.ly, Square, PayPal) look for')} {b(tr('Exportar / Descargar actividad', 'Export / Download activity'))} {tr('y guarda el archivo CSV.', 'and save the CSV file.')}</>,
+        <>{tr('En', 'In')} {b(tr('Configuración → Importar y respaldar', 'Settings → Import & backup'))} {tr('pulsa', 'press')} {b(tr('Importar archivo de donaciones', 'Import a giving file'))}.</>,
+        <>{tr('Revisa la lista: cada donación ya viene unida a su miembro cuando el nombre o el correo coinciden. Corrige las que falten y pulsa', 'Check the list: each gift is already matched to its member when the name or e-mail matches. Fix the rest and press')} {b(tr('Importar', 'Import'))}. {tr('Si subes el mismo archivo dos veces, no se repite nada.', 'If you upload the same file twice, nothing is repeated.')}</>,
+      ],
+    },
+    {
+      id: 'sinconexion', icon: <CloudOff size={24} />, title: tr('Si se va el internet durante el conteo', 'If the internet drops during a count'),
+      when: tr('Puedes seguir anotando: nada se pierde.', 'You can keep entering: nothing is lost.'),
+      steps: [
+        <>{tr('Aparecerá un aviso amarillo de', 'A yellow notice saying')} {b(tr('Sin conexión', 'No connection'))}. {tr('Sigue registrando las ofrendas como siempre.', 'Keep recording offerings as usual.')}</>,
+        <>{tr('Se guardan en esta computadora y se envían solas cuando vuelve el internet. No cierres el navegador ni borres su historial mientras tanto.', 'They are kept on this computer and sent automatically when the internet is back. Do not clear the browser’s data in the meantime.')}</>,
+      ],
+    },
+    {
+      id: 'enlace', icon: <Link2 size={24} />, title: tr('Que un miembro vea sus propias ofrendas', 'Let a member see their own giving'),
+      when: tr('Para que descargue su constancia sin pedírtela.', 'So they can download their statement without asking you.'),
+      to: '/miembros', cta: tr('Ir a Miembros', 'Go to Members'),
+      steps: [
+        <>{tr('Abre la ficha del miembro y busca', 'Open the member’s page and find')} {b(tr('Enlace personal', 'Personal link'))}.</>,
+        <>{tr('Pulsa', 'Press')} {b(tr('Enviar por correo', 'Send by e-mail'))} {tr('o', 'or')} {b(tr('Enviar por SMS', 'Send by text'))}, {tr('o crea el enlace y cópialo para mandarlo por WhatsApp.', 'or create the link and copy it to send by WhatsApp.')}</>,
+        <>{tr('La persona lo abre en su teléfono, sin contraseña. Puedes desactivarlo cuando quieras.', 'They open it on their phone, with no password. You can turn it off at any time.')}</>,
       ],
     },
     {

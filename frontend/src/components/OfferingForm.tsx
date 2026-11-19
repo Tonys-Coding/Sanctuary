@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
+import { createOffering } from '../lib/offline'
 import { useApp } from '../lib/app'
 import { useFunds } from '../lib/data'
 import { METHODS, parseAmount, seriesColor, todayIso, useLabels } from '../lib/labels'
@@ -8,7 +9,7 @@ import type { Member, Method, Offering } from '../lib/types'
 import { Button, Choice, ErrorNote, Field, Modal, useFeedback } from './ui'
 import { MemberPicker } from './MemberPicker'
 
-interface Draft { id?: string; member_id: string | null; fund_id: string; batch_id: string | null; amount: string; date: string; method: Method; check_number: string; notes: string }
+interface Draft { id?: string; member_id: string | null; fund_id: string; batch_id: string | null; amount: string; date: string; method: Method; check_number: string; notes: string; goods_value: string }
 interface OpenOptions { offering?: Offering; memberId?: string; batchId?: string; date?: string }
 
 const Ctx = createContext<(o?: OpenOptions) => void>(() => {})
@@ -33,6 +34,7 @@ export function OfferingFormProvider({ children }: { children: ReactNode }) {
     setDraft({
       id: f?.id, member_id: f?.member_id ?? o.memberId ?? null, fund_id: f?.fund_id ?? lastFund.current ?? '', batch_id: f?.batch_id ?? o.batchId ?? null,
       amount: f ? String(f.amount) : '', date: f?.date ?? o.date ?? todayIso(), method: f?.method ?? 'cash', check_number: f?.check_number ?? '', notes: f?.notes ?? '',
+      goods_value: f?.goods_value ? String(f.goods_value) : '',
     })
   }, [])
 
@@ -43,7 +45,9 @@ export function OfferingFormProvider({ children }: { children: ReactNode }) {
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => (d ? { ...d, [k]: v } : d))
   const amount = parseAmount(draft?.amount || '')
-  const valid = !!draft && amount > 0 && !!draft.fund_id && !!draft.date
+  const goods = draft?.goods_value ? parseAmount(draft.goods_value) : 0
+  const goodsError = !!draft?.goods_value && (!(goods >= 0) || goods > amount)
+  const valid = !!draft && amount > 0 && !!draft.fund_id && !!draft.date && !goodsError
 
   // The person's most recent gift, shown under the name as a quick sanity check.
   const { data: last } = useQuery({
@@ -59,8 +63,8 @@ export function OfferingFormProvider({ children }: { children: ReactNode }) {
     setBusy(true); setError(null)
     try {
       // Same person, same day, same amount: very often the same envelope typed twice.
-      if (!draft.id && draft.member_id) {
-        const same = await api.get<{ rows: Offering[] }>(`/offerings?memberId=${draft.member_id}&from=${draft.date}&to=${draft.date}&limit=50`)
+      if (!draft.id && draft.member_id && navigator.onLine) {
+        const same = await api.get<{ rows: Offering[] }>(`/offerings?memberId=${draft.member_id}&from=${draft.date}&to=${draft.date}&limit=50`).catch(() => ({ rows: [] as Offering[] }))
         const dup = same.rows.find((o) => Math.abs(o.amount - amount) < 0.005)
         if (dup && !(await confirm({
           title: tr('¿Registrar otra ofrenda igual?', 'Record another identical offering?'),
@@ -69,15 +73,18 @@ export function OfferingFormProvider({ children }: { children: ReactNode }) {
           confirm: tr('Sí, es otra ofrenda', 'Yes, it is another one'),
         }))) return
       }
-      const body = { ...draft, amount }
+      const body = { ...draft, amount, goods_value: goods > 0 ? goods : 0 }
+      let queued = false
       if (draft.id) await api.patch(`/offerings/${draft.id}`, body)
-      else await api.post('/offerings', body)
+      else queued = (await createOffering(body)).queued
       lastFund.current = draft.fund_id
       await qc.invalidateQueries()
-      toast(draft.id ? tr('Cambios guardados', 'Changes saved') : tr(`Ofrenda de ${money(amount)} registrada`, `Offering of ${money(amount)} recorded`))
+      toast(queued
+        ? tr(`Sin conexión: la ofrenda de ${money(amount)} quedó guardada en esta computadora y se enviará después`, `Offline: the ${money(amount)} offering was kept on this computer and will be sent later`)
+        : draft.id ? tr('Cambios guardados', 'Changes saved') : tr(`Ofrenda de ${money(amount)} registrada`, `Offering of ${money(amount)} recorded`))
       if (another) {
         // Keep date, fund and method: counters usually enter many envelopes from the same service.
-        setDraft({ ...draft, id: undefined, member_id: null, amount: '', check_number: '', notes: '' })
+        setDraft({ ...draft, id: undefined, member_id: null, amount: '', check_number: '', notes: '', goods_value: '' })
         setTimeout(() => document.getElementById('offering-member')?.focus(), 50)
       } else setDraft(null)
     } catch (e) { setError(e) } finally { setBusy(false) }
@@ -142,6 +149,17 @@ export function OfferingFormProvider({ children }: { children: ReactNode }) {
                 {(id) => <input id={id} className="ctl" value={draft.notes} onChange={(e) => set('notes', e.target.value)} />}
               </Field>
             </div>
+            <details className="rounded-[11px] border border-line px-4 py-2" open={!!draft.goods_value}>
+              <summary className="font-semibold text-ink-soft py-1.5 cursor-pointer">{tr('¿Recibió algo a cambio? (cena, boleto, artículo…)', 'Did they receive something in return? (dinner, ticket, item…)')}</summary>
+              <div className="pt-3 pb-2">
+                <Field label={tr('Valor de lo que recibió', 'Value of what they received')} optional
+                  hint={tr('Solo la diferencia es deducible de impuestos. Si la ofrenda pasa de $75, la constancia incluirá el aviso que exige la ley.', 'Only the difference is tax-deductible. If the gift is over $75, the statement will include the notice the law requires.')}
+                  error={goodsError ? tr('No puede ser mayor que la ofrenda.', 'It cannot be more than the gift.') : undefined}>
+                  {(id) => <input id={id} className="ctl !w-48" inputMode="decimal" placeholder="0.00" value={draft.goods_value} onChange={(e) => set('goods_value', e.target.value.replace(/[^\d.,]/g, ''))} />}
+                </Field>
+                {goods > 0 && amount > 0 && !goodsError && <p className="text-muted text-[0.9rem] mt-2">{tr(`Deducible: ${money(amount - goods)}`, `Deductible: ${money(amount - goods)}`)}</p>}
+              </div>
+            </details>
             <ErrorNote error={error} />
             <button type="submit" hidden />
           </form>

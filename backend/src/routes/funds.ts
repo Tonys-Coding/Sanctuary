@@ -15,7 +15,7 @@ r.get('/', async (req, res) => {
     await q(
       `SELECT f.*, COALESCE(s.total, 0) AS total_year, COALESCE(s.count, 0) AS offering_count
        FROM funds f LEFT JOIN (
-         SELECT fund_id, sum(amount) FILTER (WHERE date >= fy_start($1)) AS total, count(*) AS count
+         SELECT fund_id, sum(amount) FILTER (WHERE date >= (SELECT fy_start($1))) AS total, count(*) AS count
          FROM offerings WHERE org_id = $1 GROUP BY fund_id) s ON s.fund_id = f.id
        WHERE f.org_id = $1 AND ($2 OR f.archived_at IS NULL) ORDER BY f.archived_at NULLS FIRST, f.sort_order, f.created_at`,
       [req.user.orgId, req.query.all === '1'],

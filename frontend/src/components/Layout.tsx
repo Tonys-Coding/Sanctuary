@@ -1,11 +1,15 @@
 import { Suspense, useEffect, useState, type ReactNode } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChartColumn, ClipboardList, HandCoins, History, Landmark, LifeBuoy, MessageSquareText, LayoutDashboard, LogOut, Menu, Moon, Plus, Settings, Sparkles, Sun, Target, Users, X } from 'lucide-react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { ChartColumn, ClipboardList, HandCoins, History, Landmark, LifeBuoy, MessageSquareText, LayoutDashboard, LogOut, Menu, Moon, PiggyBank, Plus, Receipt, Search, Settings, ShieldCheck, Sparkles, Sun, Target, Users, X } from 'lucide-react'
 import { useApp } from '../lib/app'
 import { fileUrl } from '../lib/api'
 import { Avatar, Button, IconButton, Spinner, cx } from './ui'
 import { useOfferingForm } from './OfferingForm'
-import { MemberPicker } from './MemberPicker'
+import { GlobalSearch } from './GlobalSearch'
+import { useFunds, useMembers } from '../lib/data'
+import { IdleGuard } from './IdleGuard'
+import { TextSize } from './TextSize'
+import { OfflineBanner } from './Offline'
 
 export function Logo({ size = 40, className }: { size?: number; className?: string }) {
   return <img src="/brand/logo.svg" alt="" width={size} height={size} className={className} />
@@ -65,9 +69,12 @@ export default function Layout() {
   const { session, tr, logout } = useApp()
   const openOffering = useOfferingForm()
   const [menu, setMenu] = useState(false)
+  const [searching, setSearching] = useState(false)
+  // Loaded once per visit so name pickers answer instantly and keep working if the internet drops.
+  useMembers()
+  useFunds()
   const loc = useLocation()
-  const navigate = useNavigate()
-  useEffect(() => setMenu(false), [loc.pathname])
+  useEffect(() => { setMenu(false); setSearching(false) }, [loc.pathname])
   if (!session) return null
   const { user, org, features } = session
   const first = user.full_name.split(' ')[0]
@@ -89,6 +96,10 @@ export default function Layout() {
           <Item to="/miembros" icon={<Users size={21} />}>{tr('Miembros', 'Members')}</Item>
           <Item to="/mensajes" icon={<MessageSquareText size={21} />}>{tr('Mensajes', 'Messages')}</Item>
         </Group>
+        <Group label={tr('Finanzas', 'Finances')}>
+          <Item to="/depositos" icon={<PiggyBank size={21} />}>{tr('Depósitos', 'Deposits')}</Item>
+          <Item to="/gastos" icon={<Receipt size={21} />}>{tr('Gastos y presupuesto', 'Expenses & budget')}</Item>
+        </Group>
         <Group label={tr('Análisis', 'Insights')}>
           <Item to="/informes" icon={<ChartColumn size={21} />}>{tr('Informes', 'Reports')}</Item>
           <Item to="/impuestos" icon={<Landmark size={21} />}>{tr('Impuestos', 'Taxes')}</Item>
@@ -101,8 +112,10 @@ export default function Layout() {
           <Item to="/actividad" icon={<History size={21} />}>{tr('Actividad', 'Activity')}</Item>
           <Item to="/configuracion" icon={<Settings size={21} />}>{tr('Configuración', 'Settings')}</Item>
           <Item to="/ayuda" icon={<LifeBuoy size={21} />}>{tr('Ayuda', 'Help')}</Item>
+          <Item to="/privacidad" icon={<ShieldCheck size={21} />}>{tr('Privacidad', 'Privacy')}</Item>
         </Group>
       </div>
+      <div className="xl:hidden px-2"><TextSize /></div>
       <div className="border-t border-line pt-3 -mx-1 px-1">
         <NavLink to="/configuracion?tab=perfil" className="flex items-center gap-3 p-2 rounded-[11px] hover:bg-raised transition-colors">
           <Avatar name={user.full_name} file={user.avatar_file} size={40} />
@@ -142,9 +155,11 @@ export default function Layout() {
             {tr('Hola', 'Hello')}, <span className="font-semibold">{first}</span>
           </p>
           <div className="flex-1 hidden md:flex justify-center px-4">
-            <div className="w-full max-w-md"><MemberPicker id="buscar-miembro" value={null} allowLoose={false} placeholder={tr('Buscar un miembro…', 'Find a member…')} onChange={(id) => id && navigate(`/miembros/${id}`)} /></div>
+            <div className="w-full max-w-md"><GlobalSearch /></div>
           </div>
           <div className="flex-1 md:hidden" />
+          <IconButton label={tr('Buscar', 'Search')} className="md:hidden" onClick={() => setSearching(true)}><Search size={22} /></IconButton>
+          <span className="hidden xl:inline-flex"><TextSize /></span>
           <LangToggle />
           <ThemeToggle />
           <Button variant="primary" icon={<Plus size={20} aria-hidden />} onClick={() => openOffering()}>
@@ -153,7 +168,10 @@ export default function Layout() {
           </Button>
         </div>
       </header>
+      {searching && <div className="md:hidden px-4 py-3 border-b border-line bg-surface no-print"><GlobalSearch /></div>}
 
+      <IdleGuard />
+      <OfflineBanner />
       <main id="contenido" className="px-4 sm:px-6 2xl:px-10 py-6 sm:py-8">
         <Suspense fallback={<Spinner />}><Outlet /></Suspense>
       </main>

@@ -20,7 +20,7 @@ export function MemberPicker({ id, value, onChange, onCreate, allowLoose = true,
   placeholder?: string
 }) {
   const { tr } = useApp()
-  const { data: members = [] } = useMembers()
+  const { data: members = [], isPending: loading, isError } = useMembers()
   const [text, setText] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -33,7 +33,9 @@ export function MemberPicker({ id, value, onChange, onCreate, allowLoose = true,
     const list = n ? members.filter((m) => norm(m.full_name).includes(n) || m.envelope_number === text.trim()) : members
     return list.slice(0, 8)
   }, [members, text])
-  const canCreate = !!onCreate && text.trim().length > 1 && !members.some((m) => norm(m.full_name) === norm(text.trim()))
+  // Never offer to create someone while the list is still loading (Enter would create a duplicate),
+  // nor for a bare number, which is an envelope, not a name.
+  const canCreate = !!onCreate && !loading && !isError && text.trim().length > 1 && !/^\d+$/.test(text.trim()) && !members.some((m) => norm(m.full_name) === norm(text.trim()))
   const count = matches.length + (canCreate ? 1 : 0)
 
   useEffect(() => setActive(0), [text])
@@ -97,6 +99,11 @@ export function MemberPicker({ id, value, onChange, onCreate, allowLoose = true,
             </li>
           )}
         </ul>
+      )}
+      {open && count === 0 && text.trim().length > 0 && (
+        <p className="absolute z-30 mt-1.5 w-full bg-surface border border-line-strong rounded-[12px] shadow-card px-4 py-3 text-muted" role="status">
+          {loading ? tr('Cargando miembros…', 'Loading members…') : isError ? tr('Sin conexión: no se puede buscar ahora. Déjalo vacío y escribe el nombre en la nota.', 'Offline: searching is not possible now. Leave it empty and write the name in the note.') : tr('Nadie con ese nombre o número de sobre.', 'No one with that name or envelope number.')}
+        </p>
       )}
     </div>
   )

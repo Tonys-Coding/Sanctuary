@@ -25,16 +25,19 @@ The app is in **Spanish first**, with English one click away. It has light and d
 |---|---|
 | **Inicio** (dashboard) | One-click shortcuts for the four most common jobs; headline figures with trend lines; this year vs last by month or as a running total; fund donut; the last 12 weeks; funds month by month; who gives (regular, occasional, new); payment methods; goal rings; top givers and giving by year; upcoming birthdays and membership anniversaries with a one-click greeting; latest offerings; and a *Novedades* feed that points out trends: 30-day change, best month, new givers, and regular givers who have stopped. |
 | **Ofrendas** | Every tithe and offering grouped by day with daily subtotals, with search, period, fund and method filters, and an Excel (CSV) download. Recording one takes a name (or envelope number), an amount and Enter. The form shows the person's last gift, warns about future dates and possible duplicates, and accepts amounts typed as `1,250.50` or `45,50`. Deleting shows an **Undo** button. |
-| **Conteos** | One count sheet per service: rapid entry, a cash check by bill and coin that tells you whether the drawer balances, closing and reopening, and a printable sheet with signature lines for the two counters. |
+| **Conteos** | One count sheet per service: rapid entry, a cash check by bill and coin that tells you whether the drawer balances, and a printable sheet with signature lines for the two counters. A **closed count is locked**: changing it means reopening it with a written reason (kept in the activity log), and once its money is deposited it cannot be reopened at all. Entry keeps working **offline**: if the internet drops, gifts are kept on the computer and sent automatically when it comes back, never twice. With AI on, **a photo of the notebook page or of checks** becomes rows to review before saving. |
 | **Miembros** | Member cards (or a compact list) with photo, contact details, this year's total, last gift, a 12-month trend and "gave in X of 12 months", plus a warning when the e-mail or address needed for statements is missing. Sort and filter by status, "no gift in 60+ days" or "missing details". Each profile shows the year's total, the change from last year, the last 12 months, a breakdown by fund and the full history, and can e-mail the person their statement. A member search sits in the top bar on every page. |
 | **Informes** | One-click presets (last month for the board, the year, each member's total) and eight report types (summary, by month, by member, by fund, by method, detail, one member's statement, counts) for any period. Print them, download them as PDF or Excel, or e-mail them. E-mailing a member statement to many members sends each person only their own. |
-| **Impuestos** | Year-end contribution statements: a checklist of what each statement needs, IRS guidance in plain words ($250 rule, January 31, required wording), flags for missing addresses or e-mails, a PDF per member or all at once, and e-mail delivery with a record of what was sent. Funds such as food sales can be marked as not deductible. |
-| **Metas** | Campaigns such as "new roof" tied to a fund and dates. Progress is calculated automatically. |
+| **Impuestos** | Year-end contribution statements: a checklist of what each statement needs, IRS guidance in plain words ($250 rule, January 31, required wording), flags for missing addresses or e-mails, a PDF per member or all at once, and e-mail delivery with a record of what was sent. Funds such as food sales can be marked as not deductible. **Households** can get one joint statement; gifts where the donor received something (a dinner ticket) deduct its value and add the IRS **quid-pro-quo notice** over $75; **gifts of property** are described without a value. |
+| **Metas** | Campaigns such as "new roof" tied to a fund and dates. Progress is calculated automatically, and **pledges** record what each person promised and how far along they are. |
+| **Depósitos** | Group closed counts into a bank deposit, print the **deposit slip** (cash by bill and coin, each check), mark it as taken to the bank, and **reconcile** it against the bank statement; any difference needs a note. |
+| **Gastos y presupuesto** | Record what the church pays, with a photo or PDF of the receipt; a yearly **budget** per category with how much is left; the church's estimated bank balance from an opening balance. Feeds the monthly **treasurer's report** (opening balance, income by fund, expenses by category, budget vs actual, deposits, closing balance), which can be e-mailed to the board automatically each month. |
 | **Asistente** (AI) | Ask questions in your own words ("which members haven't given in two months?") and get answers with real numbers from your data. |
 | **Mensajes** (SMS) | Text members through Twilio: choose recipients, use a template, see a preview and the SMS count, then send now or schedule a day and time (scheduled texts can be cancelled). Automatic birthday greetings go out every morning from 9:00. Texts only go to members marked as having agreed to receive them. |
-| **Actividad** | A log of who did what. Everyone on the team can change everything, so every change is recorded. |
+| **Actividad** | A log of who did what, with **before → after** for every change. Everyone on the team can change everything, so every change is recorded. |
 | **Ayuda** | Six video tutorials in Spanish and English (recording an offering, the Sunday count, fixing or deleting an offering, adding a member, the monthly report, tax statements), plus short step-by-step guides for each real task (Sunday count, fixing a mistake, the board report, tax statements, inviting a helper, backups), each with a button to the right screen, plus a glossary. |
-| **Configuración** | Church details and logo, funds, team and invitation codes, your profile (photo, language, theme, password), CSV import with Spanish or English column names, and backups. |
+| **Configuración** | Church details and logo, **time zone**, **fiscal year**, automatic sign-out after inactivity, the church-wide **AI switch**, opening balance and the monthly board e-mail, funds, team and invitation codes, your profile, CSV import, **online giving import** (Zelle in a bank export, Tithe.ly, Square, PayPal — matched to members and never imported twice), and **backups**: an automatic copy every day on the server, manual copies, and restoring any of them (the current data is saved first). |
+| **Everywhere** | One **search box** for members, check numbers, amounts, counts and expenses (press `/`); **A− / A+** text size; a **Primeros pasos** checklist for new churches; duplicate-member detection and merging; unique envelope numbers; a **personal link** each member can open on their phone to see their own giving and download their statement; a plain-language **privacy** page. |
 
 ### AI features (Google Gemini)
 
@@ -44,6 +47,9 @@ These turn on as soon as a key is present and stay hidden until then:
 - **Asistente**: a chat that queries the database through tools scoped to your church, so it can only see your church's records and its numbers come from real queries.
 - **Explicar con IA**: a plain-language explanation of any report, which can be included in the PDF.
 - **Dictar o pegar notas**: inside a count, type or dictate "María López 50 diezmo, 135 de ofrenda suelta…" and check the rows it finds before adding them.
+- **Leer una foto**: a photo of the notebook page or of checks becomes rows to review; hard-to-read ones are flagged.
+
+Each church can switch AI off in `Configuración → Iglesia`.
 - **Mejorar el mensaje**: drafts the e-mail that goes out with reports and statements.
 
 ### Accounts and access
@@ -140,7 +146,7 @@ cd frontend && npm run build
 cd ../backend && npm run build && NODE_ENV=production npm start
 ```
 
-The backend serves the built frontend, so there is only one process to run. Set `APP_URL` to the public address so links in e-mails work. Uploaded photos are stored in `backend/uploads/` (or `UPLOAD_DIR`), so back that folder up along with the database.
+The backend serves the built frontend, so there is only one process to run. Set `APP_URL` to the public address so links in e-mails and members' personal links work. Uploaded photos and receipts are stored in `backend/uploads/` (or `UPLOAD_DIR`) and the daily automatic backups in `backend/backups/` (or `BACKUP_DIR`); keep a copy of both folders somewhere else too. In production the app also works offline for the count screen (a small service worker keeps the app itself, never the data).
 
 ## Tutorial videos
 
@@ -154,7 +160,11 @@ npm run render    # writes frontend/public/tutorials/*.mp4 and poster images
 npm run studio    # optional: preview and tweak the videos in the browser
 ```
 
-Captions are in `tutorials/src/script.ts`. Remotion is free for non-profit organizations such as churches.
+```bash
+npm run narrate   # adds a spoken voice (Spanish and English) with Gemini text-to-speech; uses GEMINI_API_KEY
+```
+
+Captions (and what the voice says) are in `tutorials/src/script.ts`. Each sentence is generated once and cached in `tutorials/narration/`. Remotion is free for non-profit organizations such as churches.
 
 ## Tests
 
@@ -162,7 +172,7 @@ Captions are in `tutorials/src/script.ts`. Remotion is free for non-profit organ
 cd backend && npm test
 ```
 
-The tests run against a real PostgreSQL database (`TEST_DATABASE_URL`, which defaults to `sanctuary_test`) and a stand-in Gemini server. They cover registration and invitations, separation between churches, reports and PDFs, tax rules, counts, password reset, the AI tool-calling loop, CSV import, and text messages (consent, scheduling, birthday greetings) against a stand-in Twilio server.
+The tests run against a real PostgreSQL database (`TEST_DATABASE_URL`, which defaults to `sanctuary_test`) and a stand-in Gemini server. They cover registration and invitations, separation between churches, reports and PDFs, tax rules, counts, password reset, the AI tool-calling loop, CSV import, and text messages (consent, scheduling, birthday greetings) against a stand-in Twilio server, plus everything added in v3: time zones and fiscal years, locked counts and reopening, before/after audit entries, unique envelopes and merging duplicates, backups and restore, deposits and reconciliation, expenses, budget and the treasurer's report, the monthly board e-mail, households, goods received and gifts of property, pledges, online giving files, offline references, personal links, search, the setup checklist, photo reading and the AI switch.
 
 ## Tech stack
 

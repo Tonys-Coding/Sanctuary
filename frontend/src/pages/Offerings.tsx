@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Download, HandCoins, Plus, Search } from 'lucide-react'
+import { Download, Globe, HandCoins, Plus, Search } from 'lucide-react'
+import { OnlineImport } from '../components/OnlineImport'
 import { api, download, qs } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useFunds } from '../lib/data'
@@ -14,19 +16,22 @@ import { useOfferingForm } from '../components/OfferingForm'
 const PAGE = 100
 
 export default function Offerings() {
-  const { tr, money, num } = useApp()
+  const { tr, money, num, session } = useApp()
+  const fys = session!.org.fiscal_year_start || 1
+  const [params] = useSearchParams()
   const labels = useLabels()
   const open = useOfferingForm()
   const { fail } = useFeedback()
   const { data: funds = [] } = useFunds(true)
-  const [range, setRange] = useState<RangeKey>('this_year')
+  const [range, setRange] = useState<RangeKey>(params.get('q') ? 'all' : 'this_year')
   const [custom, setCustom] = useState({ from: '', to: '' })
   const [fundId, setFundId] = useState('')
   const [method, setMethod] = useState('')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(params.get('q') || '')
   const [limit, setLimit] = useState(PAGE)
+  const [importing, setImporting] = useState(false)
 
-  const dates = range === 'custom' ? custom : rangeFor(range)
+  const dates = range === 'custom' ? custom : rangeFor(range, fys)
   const filters = { ...dates, fundId, method, q: search.trim() }
   const { data, isPending } = useQuery({
     queryKey: ['offerings', filters, limit],
@@ -38,6 +43,7 @@ export default function Offerings() {
   return (
     <>
       <PageHeader title={tr('Ofrendas', 'Offerings')} subtitle={tr('Todos los diezmos y ofrendas registrados. Usa los filtros para encontrar lo que buscas.', 'Every tithe and offering on record. Use the filters to find what you need.')}>
+        <Button icon={<Globe size={19} />} onClick={() => setImporting(true)}>{tr('Importar en línea / Zelle', 'Import online / Zelle')}</Button>
         <Button icon={<Download size={19} />} onClick={() => download(`/offerings/export.csv${qs(filters)}`, tr('ofrendas.csv', 'offerings.csv')).catch(fail)}>{tr('Descargar Excel', 'Download Excel')}</Button>
         <Button variant="primary" icon={<Plus size={20} />} onClick={() => open()}>{tr('Registrar ofrenda', 'Record offering')}</Button>
       </PageHeader>
@@ -45,10 +51,10 @@ export default function Offerings() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))] mb-4 no-print">
         <div className="relative">
           <Search size={19} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" aria-hidden />
-          <input className="ctl !pl-11" placeholder={tr('Buscar por nombre o nota', 'Search by name or note')} aria-label={tr('Buscar', 'Search')} value={search} onChange={(e) => { setSearch(e.target.value); reset() }} />
+          <input className="ctl !pl-11" placeholder={tr('Buscar por nombre, nota o n.º de cheque', 'Search by name, note or check no.')} aria-label={tr('Buscar', 'Search')} value={search} onChange={(e) => { setSearch(e.target.value); reset() }} />
         </div>
         <select className="ctl" aria-label={tr('Periodo', 'Period')} value={range} onChange={(e) => { setRange(e.target.value as RangeKey); reset() }}>
-          {rangeOptions(tr).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {rangeOptions(tr, true, fys).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select className="ctl" aria-label={tr('Fondo', 'Fund')} value={fundId} onChange={(e) => { setFundId(e.target.value); reset() }}>
           <option value="">{tr('Todos los fondos', 'All funds')}</option>
@@ -66,6 +72,7 @@ export default function Offerings() {
         )}
       </div>
 
+      <OnlineImport open={importing} onClose={() => setImporting(false)} />
       <Card pad={false}>
         {isPending ? <Spinner /> : !data || data.count === 0 ? (
           <Empty icon={<HandCoins size={28} />} title={tr('No hay ofrendas con estos filtros', 'No offerings match these filters')}

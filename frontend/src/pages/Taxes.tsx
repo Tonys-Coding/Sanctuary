@@ -8,12 +8,15 @@ import { Avatar, Badge, Button, Card, Empty, PageHeader, Spinner, Td, Th, cx } f
 import { EmailComposer } from '../components/EmailComposer'
 import { usePdfPreview } from '../components/PdfPreview'
 
-interface Row { id: string; name: string; avatar_file: string | null; email: string | null; has_address: boolean; deductible: number; non_deductible: number; gifts: number; largest: number; needs_acknowledgment: boolean; emailed_at: string | null }
+interface Row {
+  id: string; name: string; avatar_file: string | null; email: string | null; emails: string[]; has_address: boolean; deductible: number; given: number; goods: number; non_deductible: number
+  gifts: number; largest: number; needs_acknowledgment: boolean; quid_pro_quo: boolean; noncash: number; household: boolean; members: string[]; emailed_at: string | null
+}
 interface Tax {
   year: number; years: number[]; emailConfigured: boolean
   readiness: { legal_name: boolean; tax_id: boolean; address: boolean; signer: boolean }
   members: Row[]
-  totals: { deductible: number; statements: number; loose: number; non_deductible: number; total: number; missing_email: number; missing_address: number; needs_acknowledgment: number; emailed: number }
+  totals: { deductible: number; statements: number; loose: number; non_deductible: number; goods: number; total: number; missing_email: number; missing_address: number; needs_acknowledgment: number; emailed: number; quid_pro_quo: number; noncash: number; households: number }
 }
 
 export default function Taxes() {
@@ -40,7 +43,7 @@ export default function Taxes() {
   )
   const r = data?.readiness
   const allReady = r && r.legal_name && r.tax_id && r.address && r.signer
-  const withEmail = data?.members.filter((m) => m.email) || []
+  const withEmail = data?.members.filter((m) => m.emails?.length) || []
   const sendTo = chosen.size ? withEmail.filter((m) => chosen.has(m.id)) : withEmail
 
   return (
@@ -80,6 +83,9 @@ export default function Taxes() {
                 <li><strong>{tr('Donativos de $250 o más.', 'Gifts of $250 or more.')}</strong> {tr(`Para deducir una contribución individual de $250 o más, el miembro necesita una constancia escrita de la iglesia. Este año aplica a ${data.totals.needs_acknowledgment} personas.`, `To deduct any single contribution of $250 or more, the member needs a written acknowledgment from the church. This year that applies to ${data.totals.needs_acknowledgment} people.`)}</li>
                 <li><strong>{tr('Cuándo entregarlas.', 'When to deliver them.')}</strong> {tr('El miembro debe tenerla antes de presentar su declaración. La costumbre es entregarlas antes del 31 de enero.', 'The member must have it before filing their return. The usual practice is to deliver them by January 31.')}</li>
                 <li><strong>{tr('Qué debe decir.', 'What it must say.')}</strong> {tr('Nombre de la iglesia, fecha y monto de cada contribución, y una declaración de que no se entregaron bienes ni servicios a cambio (salvo beneficios religiosos intangibles). Sanctuary lo incluye automáticamente.', 'The church’s name, the date and amount of each contribution, and a statement that no goods or services were given in return (other than intangible religious benefits). Sanctuary includes this automatically.')}</li>
+                <li><strong>{tr('Cuando el donante recibe algo.', 'When the donor receives something.')}</strong> {tr(`Si alguien da más de $75 y recibe algo a cambio (una cena, un boleto), solo es deducible la diferencia y la constancia debe decirlo. Anota el valor en «¿Recibió algo a cambio?» al registrar la ofrenda; Sanctuary calcula el resto y añade el aviso. Este año aplica a ${data.totals.quid_pro_quo} personas.`, `If someone gives more than $75 and receives something (a dinner, a ticket), only the difference is deductible and the statement must say so. Enter the value under “Did they receive something in return?” when recording the gift; Sanctuary works out the rest and adds the notice. This year it applies to ${data.totals.quid_pro_quo} people.`)}</li>
+                <li><strong>{tr('Donaciones en especie.', 'Gifts of property.')}</strong> {tr('Muebles, comida o equipo se describen en la constancia sin ponerles valor: el valor lo determina quien dona. Regístralas en la ficha del miembro.', 'Furniture, food or equipment are described on the statement without a value: the donor determines the value. Record them on the member’s page.')}</li>
+                <li><strong>{tr('Familias.', 'Households.')}</strong> {tr('Los esposos pueden recibir una sola constancia conjunta. Únelos en una familia desde la ficha del miembro.', 'Spouses can receive one joint statement. Group them as a household from the member’s page.')}</li>
                 <li><strong>{tr('Lo que no es deducible.', 'What is not deductible.')}</strong> {tr('Ofrendas sin nombre, compras (comida, rifas, camisetas) y pagos por los que se recibió algo a cambio. Marca esos fondos como “no deducibles” en Configuración.', 'Offerings with no name, purchases (food, raffles, T-shirts) and payments where something was received in return. Mark those funds as “not deductible” in Settings.')}</li>
               </ul>
               <p className="text-muted text-[0.87rem] mt-4">{tr('Esto es información general, no asesoría fiscal. Confirma con un contador los casos particulares.', 'This is general information, not tax advice. Check specific cases with an accountant.')}</p>
@@ -97,23 +103,27 @@ export default function Taxes() {
             {data.members.length === 0 ? (
               <Empty icon={<Landmark size={28} />} title={tr(`No hay contribuciones deducibles en ${year}`, `No deductible contributions in ${year}`)}>{tr('Aparecerán aquí cuando registres ofrendas con nombre en fondos deducibles.', 'They will appear here once you record named offerings in deductible funds.')}</Empty>
             ) : (
-              <div className="overflow-x-auto mt-4 border-t border-line">
+              <div className="overflow-x-auto relative mt-4 border-t border-line">
                 <table className="w-full border-collapse min-w-[720px]">
                   <thead><tr className="border-b border-line">
                     <Th className="w-12"><input type="checkbox" className="size-5 accent-[var(--accent)]" aria-label={tr('Elegir todos', 'Select all')} checked={chosen.size === data.members.length} onChange={() => setChosen(new Set(chosen.size === data.members.length ? [] : data.members.map((m) => m.id)))} /></Th>
-                    <Th>{tr('Miembro', 'Member')}</Th><Th right>{tr('Ofrendas', 'Gifts')}</Th><Th right>{tr('Total deducible', 'Deductible total')}</Th><Th>{tr('Estado', 'Status')}</Th><Th />
+                    <Th>{tr('Miembro', 'Member')}</Th><Th right>{tr('Ofrendas', 'Gifts')}</Th><Th right>{tr('Total deducible', 'Deductible total')}</Th><Th>{tr('Estado', 'Status')}</Th><Th><span className="sr-only">{tr('Constancia', 'Statement')}</span></Th>
                   </tr></thead>
                   <tbody className="divide-y divide-line">
                     {data.members.map((m) => (
                       <tr key={m.id} className={cx('hover:bg-raised/50', chosen.has(m.id) && 'bg-accent-soft/40')}>
                         <Td><input type="checkbox" className="size-5 accent-[var(--accent)]" aria-label={m.name} checked={chosen.has(m.id)} onChange={() => toggle(m.id)} /></Td>
-                        <Td><Link to={`/miembros/${m.id}`} className="flex items-center gap-3 hover:underline underline-offset-4"><Avatar name={m.name} file={m.avatar_file} size={36} /><span className="font-medium">{m.name}</span></Link></Td>
+                        <Td>{m.household
+                          ? <span className="flex items-center gap-3"><Avatar name={m.name} file={m.avatar_file} size={36} /><span><span className="font-medium block">{m.name}</span><span className="text-muted text-[0.85rem]">{tr('Constancia conjunta', 'Joint statement')}: {m.members.join(', ')}</span></span></span>
+                          : <Link to={`/miembros/${m.id}`} className="flex items-center gap-3 hover:underline underline-offset-4"><Avatar name={m.name} file={m.avatar_file} size={36} /><span className="font-medium">{m.name}</span></Link>}</Td>
                         <Td right className="text-ink-soft">{num(m.gifts)}</Td>
-                        <Td right className="font-semibold whitespace-nowrap">{money(m.deductible)}</Td>
+                        <Td right className="font-semibold whitespace-nowrap">{money(m.deductible)}{m.goods > 0 && <span className="block text-muted text-[0.8rem] font-normal">{tr(`dio ${money(m.given)}, recibió ${money(m.goods)}`, `gave ${money(m.given)}, received ${money(m.goods)}`)}</span>}</Td>
                         <Td>
                           <span className="flex flex-wrap gap-1.5">
                             {m.emailed_at && <Badge tone="good"><CircleCheck size={13} />{tr('Enviada', 'Sent')} {date(m.emailed_at.slice(0, 10))}</Badge>}
                             {m.needs_acknowledgment && <Badge tone="accent">{tr('Donativo de $250+', '$250+ gift')}</Badge>}
+                            {m.quid_pro_quo && <Badge tone="accent">{tr('Recibió algo a cambio', 'Received goods')}</Badge>}
+                            {m.noncash > 0 && <Badge>{tr(`${m.noncash} en especie`, `${m.noncash} in kind`)}</Badge>}
                             {!m.email && <Badge tone="warn">{tr('Sin correo', 'No e-mail')}</Badge>}
                             {!m.has_address && <Badge tone="warn">{tr('Sin dirección', 'No address')}</Badge>}
                           </span>

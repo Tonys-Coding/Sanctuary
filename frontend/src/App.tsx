@@ -1,5 +1,6 @@
-import { lazy } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Spinner } from './components/ui'
 import { useApp } from './lib/app'
 import Layout, { Logo } from './components/Layout'
 import { OfferingFormProvider } from './components/OfferingForm'
@@ -19,9 +20,18 @@ const Activity = lazy(() => import('./pages/Activity'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
 const Help = lazy(() => import('./pages/Help'))
 const Messages = lazy(() => import('./pages/Messages'))
+const Deposits = lazy(() => import('./pages/Deposits'))
+const Expenses = lazy(() => import('./pages/Expenses'))
+const Privacy = lazy(() => import('./pages/Privacy'))
+const MyGiving = lazy(() => import('./pages/MyGiving'))
 
 export default function App() {
   const { session, loading } = useApp()
+  const { pathname } = useLocation()
+  // A member's personal link works without signing in, whoever is (or is not) signed in on this browser.
+  if (pathname.startsWith('/mi-ofrenda/')) {
+    return <Suspense fallback={<Spinner />}><Routes><Route path="/mi-ofrenda/:token" element={<MyGiving />} /></Routes></Suspense>
+  }
   if (loading) {
     return <div className="min-h-dvh grid place-items-center"><Logo size={72} className="animate-[pulse-soft_1.4s_ease-in-out_infinite]" /></div>
   }
@@ -32,6 +42,7 @@ export default function App() {
         <Route path="/registro" element={<RegisterPage />} />
         <Route path="/recuperar" element={<ForgotPage />} />
         <Route path="/restablecer" element={<ResetPage />} />
+        <Route path="/privacidad" element={<Suspense fallback={<Spinner />}><Privacy standalone /></Suspense>} />
         <Route path="*" element={<Navigate to="/entrar" replace />} />
       </Routes>
     )
@@ -55,6 +66,9 @@ export default function App() {
           <Route path="configuracion" element={<SettingsPage />} />
           <Route path="ayuda" element={<Help />} />
           <Route path="mensajes" element={<Messages />} />
+          <Route path="depositos" element={<Deposits />} />
+          <Route path="gastos" element={<Expenses />} />
+          <Route path="privacidad" element={<Privacy />} />
         </Route>
         <Route path="/restablecer" element={<ResetPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

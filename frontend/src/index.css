@@ -98,7 +98,7 @@
   html {
     /* Larger than usual and growing with the screen: the people using this read numbers, often with reading glasses.
        17px on a laptop, up to 20px on a large monitor. */
-    font-size: clamp(17px, 0.45vw + 11px, 20px);
+    font-size: calc(clamp(17px, 0.45vw + 11px, 20px) * var(--text-scale, 1));
     -webkit-text-size-adjust: 100%;
   }
   body {

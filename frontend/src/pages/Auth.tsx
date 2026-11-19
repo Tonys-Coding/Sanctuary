@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Building2, CircleCheck, Eye, EyeOff, KeyRound } from 'lucide-react'
+import { ArrowLeft, Building2, CircleCheck, Clock, Eye, EyeOff, KeyRound } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import type { Session } from '../lib/types'
@@ -60,6 +60,9 @@ function Password({ id, value, onChange, autoComplete }: { id: string; value: st
   )
 }
 
+/** The computer's own time zone — a good first guess for a new church (it can be changed in Settings). */
+const browserTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined } catch { return undefined } }
+
 export function LoginPage() {
   const { tr, setSession } = useApp()
   const [email, setEmail] = useState('')
@@ -67,6 +70,7 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [params] = useSearchParams()
+  const [idle] = useState(() => { try { const v = sessionStorage.getItem('sanctuary.idle') === '1'; sessionStorage.removeItem('sanctuary.idle'); return v } catch { return false } })
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setError(null)
     try { setSession(await api.post<Session>('/auth/login', { email, password })) } catch (err) { setError(err) } finally { setBusy(false) }
@@ -74,6 +78,7 @@ export function LoginPage() {
   return (
     <Shell title={tr('Bienvenido de nuevo', 'Welcome back')} lead={tr('Entra para continuar con la tesorería de tu iglesia.', 'Sign in to continue with your church treasury.')}>
       <form onSubmit={submit} className="grid gap-5">
+        {idle && <p className="flex items-center gap-2 rounded-[11px] bg-raised text-ink-soft px-4 py-3"><Clock size={20} aria-hidden />{tr('Cerramos tu sesión porque no hubo actividad por un rato. Vuelve a entrar para continuar.', 'We signed you out after a while without activity. Sign in again to continue.')}</p>}
         {params.get('listo') && <p className="flex items-center gap-2 rounded-[11px] bg-good-soft text-good px-4 py-3"><CircleCheck size={20} />{tr('Contraseña actualizada. Ya puedes entrar.', 'Password updated. You can sign in now.')}</p>}
         <Field label={tr('Correo electrónico', 'E-mail')}>
           {(id) => <input id={id} className="ctl" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" autoFocus required />}
@@ -85,6 +90,7 @@ export function LoginPage() {
           <Link to="/recuperar" className="text-accent-ink font-semibold hover:underline underline-offset-4">{tr('Olvidé mi contraseña', 'I forgot my password')}</Link>
           <Link to="/registro" className="text-accent-ink font-semibold hover:underline underline-offset-4">{tr('Crear una cuenta', 'Create an account')}</Link>
         </div>
+        <p className="text-center text-[0.9rem]"><Link to="/privacidad" className="text-muted hover:text-ink underline underline-offset-4">{tr('Privacidad', 'Privacy')}</Link></p>
       </form>
     </Shell>
   )
@@ -112,7 +118,7 @@ export function RegisterPage() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setError(null)
-    try { setSession(await api.post<Session>('/auth/register', { ...form, mode, language: lang })) } catch (err) { setError(err) } finally { setBusy(false) }
+    try { setSession(await api.post<Session>('/auth/register', { ...form, mode, language: lang, timezone: browserTimeZone() })) } catch (err) { setError(err) } finally { setBusy(false) }
   }
   const option = (m: 'join' | 'create', icon: ReactNode, title: string, text: string) => (
     <button type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)}

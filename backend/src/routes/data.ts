@@ -66,8 +66,11 @@ r.post('/import/members', upload.single('file'), async (req, res) => {
   });
   if (h.first_name === undefined) throw new HttpError(400, 'csv_missing_columns', ['nombre']);
   const existing = new Set((await q(`SELECT ${fullName} AS n FROM members m WHERE org_id = $1`, [req.user.orgId])).map((m) => norm(m.n)));
+  // Envelope numbers are unique: a number already in use (or repeated in the file) is left empty.
+  const envelopes = new Set((await q('SELECT envelope_number FROM members WHERE org_id = $1 AND envelope_number IS NOT NULL AND archived_at IS NULL', [req.user.orgId])).map((m) => m.envelope_number));
   let created = 0;
   let skipped = 0;
+  let envelopeConflicts = 0;
   await tx(async (c) => {
     for (const row of rows.slice(1)) {
       const get = (k: string) => (h[k] === undefined ? '' : (row[h[k]] || '').trim());
@@ -79,16 +82,19 @@ r.post('/import/members', upload.single('file'), async (req, res) => {
       if (existing.has(key)) { skipped++; continue; }
       existing.add(key);
       const email = /^\S+@\S+\.\S+$/.test(get('email')) ? get('email').toLowerCase() : null;
+      let envelope: string | null = get('envelope_number') || null;
+      if (envelope && envelopes.has(envelope)) { envelope = null; envelopeConflicts++; }
+      if (envelope) envelopes.add(envelope);
       await q(
         'INSERT INTO members (org_id, first_name, last_name, email, phone, address, city, state, postal_code, envelope_number, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
-        [req.user.orgId, first.slice(0, 80), last.slice(0, 80), email, ...['phone', 'address', 'city', 'state', 'postal_code', 'envelope_number', 'notes'].map((k) => get(k) || null)],
+        [req.user.orgId, first.slice(0, 80), last.slice(0, 80), email, ...['phone', 'address', 'city', 'state', 'postal_code'].map((k) => get(k) || null), envelope, get('notes') || null],
         c,
       );
       created++;
     }
   });
   await audit(req, 'import', 'member', null, String(created));
-  res.json({ created, skipped });
+  res.json({ created, skipped, envelopeConflicts });
 });
 
 r.post('/import/offerings', upload.single('file'), async (req, res) => {

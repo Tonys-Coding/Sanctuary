@@ -49,7 +49,7 @@ export async function dashboard(orgId: string, yearParam?: number) {
               f.name AS fund_name, f.color_slot AS fund_color
        FROM offerings o LEFT JOIN members m ON m.id = o.member_id JOIN funds f ON f.id = o.fund_id
        WHERE o.org_id = $1 ORDER BY o.date DESC, o.created_at DESC LIMIT 8`, [orgId]),
-    q(`${GOALS} AND g.end_date >= org_today($1) - 30 ORDER BY g.end_date LIMIT 4`, [orgId]),
+    q(`${GOALS} AND g.end_date >= (SELECT org_today($1)) - 30 ORDER BY g.end_date LIMIT 4`, [orgId]),
     one(`SELECT COALESCE(sum(amount) FILTER (WHERE date > $2::date - 30), 0) AS last30,
                 COALESCE(sum(amount) FILTER (WHERE date <= $2::date - 30), 0) AS prev30
          FROM offerings WHERE org_id = $1 AND date > $2::date - 60 AND date <= $2::date`, [orgId, ref]),

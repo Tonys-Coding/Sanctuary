@@ -248,7 +248,7 @@ function tools(orgId: string): ToolDef[] {
           `SELECT ${fullName} AS name, m.status, m.church_role AS role, m.joined_date, (m.email IS NOT NULL) AS has_email, (m.address IS NOT NULL) AS has_address,
                   COALESCE(s.total_year, 0) AS given_this_year, COALESCE(s.total_all, 0) AS given_all_time, s.last_gift
            FROM members m LEFT JOIN (
-             SELECT member_id, round(sum(amount) FILTER (WHERE date >= fy_start($1)), 2) AS total_year, round(sum(amount), 2) AS total_all, max(date) AS last_gift
+             SELECT member_id, round(sum(amount) FILTER (WHERE date >= (SELECT fy_start($1))), 2) AS total_year, round(sum(amount), 2) AS total_all, max(date) AS last_gift
              FROM offerings WHERE org_id = $1 GROUP BY member_id) s ON s.member_id = m.id
            WHERE m.org_id = $1 AND m.archived_at IS NULL
              AND ($2::text IS NULL OR ${fullName} ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR m.status = $3)

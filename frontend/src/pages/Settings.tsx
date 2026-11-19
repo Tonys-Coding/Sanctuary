@@ -1,22 +1,24 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, ArchiveRestore, MessageSquareText, CircleCheck, Copy, DatabaseBackup, Download, Mail, Monitor, Moon, Pencil, Plus, Sparkles, Sun, Trash2, TriangleAlert, Upload } from 'lucide-react'
+import { Archive, ArchiveRestore, MessageSquareText, CircleCheck, Copy, DatabaseBackup, Download, History, Mail, Monitor, Moon, Pencil, Plus, Sparkles, Sun, Trash2, TriangleAlert, Upload } from 'lucide-react'
 import { api, download } from '../lib/api'
 import { useApp } from '../lib/app'
 import { fileUrl } from '../lib/api'
 import { useFunds } from '../lib/data'
-import { seriesColor, useErrorText } from '../lib/labels'
+import { seriesColor, useErrorText, useLabels } from '../lib/labels'
+import { OnlineImport } from '../components/OnlineImport'
 import type { Fund, Org, Theme } from '../lib/types'
 import { Avatar, AvatarPicker, Badge, Button, Card, Choice, ErrorNote, Field, IconButton, Modal, PageHeader, Spinner, Tabs, cx, useFeedback } from '../components/ui'
 import { Logo } from '../components/Layout'
 
-type Tab = 'iglesia' | 'fondos' | 'equipo' | 'perfil' | 'datos' | 'sistema'
+type Tab = 'iglesia' | 'finanzas' | 'fondos' | 'equipo' | 'perfil' | 'datos' | 'sistema'
 
 // ─── Church ──────────────────────────────────────────────────────────────────
 
 function ChurchTab() {
   const { tr, session, refresh } = useApp()
+  const labels = useLabels()
   const { toast, fail } = useFeedback()
   const [f, setF] = useState<Org>(session!.org)
   const [busy, setBusy] = useState(false)
@@ -65,9 +67,100 @@ function ChurchTab() {
             {(id) => <textarea id={id} className="ctl" {...bind('statement_note')} />}
           </Field>
         </div>
-        <ErrorNote error={error} className="mt-4" />
-        <div className="mt-6"><Button type="submit" variant="primary" busy={busy}>{tr('Guardar cambios', 'Save changes')}</Button></div>
       </Card>
+      <Card title={tr('Hora, año fiscal y seguridad', 'Time, fiscal year and security')}>
+        <div className="grid sm:grid-cols-3 gap-x-5 gap-y-4">
+          <Field label={tr('Zona horaria de la iglesia', 'Church time zone')} hint={tr('Decide qué día es «hoy» y a qué hora salen los mensajes automáticos.', 'Decides what day “today” is and when automatic messages go out.')}>
+            {(id) => <select id={id} className="ctl" value={f.timezone} onChange={(e) => setF({ ...f, timezone: e.target.value })}>{timeZones(f.timezone).map((z) => <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>)}</select>}
+          </Field>
+          <Field label={tr('El año fiscal empieza en', 'The fiscal year starts in')} hint={tr('Enero si la iglesia usa el año normal.', 'January if the church uses the calendar year.')}>
+            {(id) => <select id={id} className="ctl" value={f.fiscal_year_start} onChange={(e) => setF({ ...f, fiscal_year_start: Number(e.target.value) })}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{labels.month(i + 1, 'long')}</option>)}</select>}
+          </Field>
+          <Field label={tr('Cerrar sesión sin actividad después de', 'Sign out when idle after')} hint={tr('Protege la información si alguien deja la computadora abierta.', 'Protects the data if someone leaves the computer open.')}>
+            {(id) => <select id={id} className="ctl" value={f.idle_minutes} onChange={(e) => setF({ ...f, idle_minutes: Number(e.target.value) })}>
+              {[5, 10, 15, 30, 60, 120].map((m) => <option key={m} value={m}>{m < 60 ? tr(`${m} minutos`, `${m} minutes`) : tr(`${m / 60} ${m === 60 ? 'hora' : 'horas'}`, `${m / 60} ${m === 60 ? 'hour' : 'hours'}`)}</option>)}
+              <option value={0}>{tr('Nunca (no recomendado)', 'Never (not recommended)')}</option>
+            </select>}
+          </Field>
+        </div>
+      </Card>
+      {session!.features.aiConfigured && (
+        <Card title={tr('Inteligencia artificial', 'Artificial intelligence')} hint={tr('Cuando está encendida, los datos necesarios para cada respuesta se envían a Google Gemini. Puedes apagarla para toda la iglesia.', 'When on, the data needed for each answer is sent to Google Gemini. You can turn it off for the whole church.')}>
+          <label className="flex items-center gap-3 cursor-pointer w-fit">
+            <input type="checkbox" className="size-6 accent-[var(--accent)]" checked={f.ai_enabled} onChange={(e) => setF({ ...f, ai_enabled: e.target.checked })} />
+            <span className="font-semibold">{tr('Usar funciones de IA en esta iglesia', 'Use AI features in this church')}</span>
+          </label>
+        </Card>
+      )}
+      <ErrorNote error={error} />
+      <div><Button type="submit" variant="primary" size="lg" busy={busy}>{tr('Guardar cambios', 'Save changes')}</Button></div>
+    </form>
+  )
+}
+
+/** Every time zone the browser knows, with the church's current one always included. */
+function timeZones(current: string) {
+  let all: string[] = []
+  try { all = (Intl as any).supportedValuesOf('timeZone') } catch { /* older browsers */ }
+  const common = ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Phoenix', 'America/Los_Angeles', 'America/Anchorage', 'Pacific/Honolulu', 'America/Puerto_Rico', 'America/Mexico_City', 'America/Bogota', 'America/Lima', 'America/Santiago', 'America/Argentina/Buenos_Aires', 'America/Guatemala', 'America/El_Salvador', 'America/Tegucigalpa', 'America/Santo_Domingo', 'Europe/Madrid', 'UTC']
+  return Array.from(new Set([current, ...common, ...all]))
+}
+
+// ─── Finances ────────────────────────────────────────────────────────────────
+
+function FinanceTab() {
+  const { tr, session, refresh, money } = useApp()
+  const { toast } = useFeedback()
+  const [f, setF] = useState<Org>(session!.org)
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState<unknown>(null)
+  const save = async () => {
+    setBusy('save'); setError(null)
+    try { await api.patch('/org', { ...f, opening_balance: f.opening_balance === null || (f.opening_balance as unknown) === '' ? null : Number(f.opening_balance) }); await refresh(); toast(tr('Guardado', 'Saved')) } catch (e) { setError(e) } finally { setBusy('') }
+  }
+  const test = async () => {
+    setBusy('test'); setError(null)
+    try { await api.patch('/org', f); await refresh(); const r = await api.post<{ sent: number }>('/org/board-report/test'); toast(tr(`Informe enviado a ${r.sent} ${r.sent === 1 ? 'persona' : 'personas'}`, `Report sent to ${r.sent} ${r.sent === 1 ? 'person' : 'people'}`)) } catch (e) { setError(e) } finally { setBusy('') }
+  }
+  return (
+    <form className="grid gap-5 max-w-4xl" onSubmit={(e) => { e.preventDefault(); save() }}>
+      <Card title={tr('Saldo inicial', 'Opening balance')} hint={tr('Lo que había en el banco el día que empezaste a usar Sanctuary. Con esto, el informe de tesorería calcula el saldo de cada mes.', 'What was in the bank the day you started using Sanctuary. With it, the treasurer’s report works out each month’s balance.')}>
+        <div className="grid sm:grid-cols-2 gap-5 max-w-xl">
+          <Field label={tr('Saldo en el banco', 'Bank balance')} optional>
+            {(id) => <input id={id} className="ctl" inputMode="decimal" placeholder="0.00" value={f.opening_balance ?? ''} onChange={(e) => setF({ ...f, opening_balance: (e.target.value.replace(/[^\d.-]/g, '') as unknown as number) })} />}
+          </Field>
+          <Field label={tr('A la fecha de', 'As of')} optional>
+            {(id) => <input id={id} type="date" className="ctl" value={f.opening_balance_date ?? ''} onChange={(e) => setF({ ...f, opening_balance_date: e.target.value || null })} />}
+          </Field>
+        </div>
+        {f.opening_balance != null && f.opening_balance_date && <p className="text-muted mt-2">{tr(`Desde ese día se suman las ofrendas y se restan los gastos. Saldo inicial: ${money(Number(f.opening_balance) || 0)}.`, `From that day offerings are added and expenses subtracted. Opening balance: ${money(Number(f.opening_balance) || 0)}.`)}</p>}
+      </Card>
+      <Card title={tr('Informe mensual a la junta', 'Monthly report to the board')} hint={tr('Cada mes, Sanctuary envía por correo el informe de tesorería del mes anterior (en PDF) a las personas que indiques.', 'Every month, Sanctuary e-mails the previous month’s treasurer’s report (as a PDF) to the people you choose.')}>
+        {!session!.features.email && <p className="rounded-[11px] bg-warn-soft px-4 py-2.5 mb-4">{tr('Para enviarlo hace falta configurar el correo (SMTP) en el servidor.', 'E-mail (SMTP) must be set up on the server to send it.')}</p>}
+        <div className="grid gap-5">
+          <label className="flex items-center gap-3 cursor-pointer w-fit">
+            <input type="checkbox" className="size-6 accent-[var(--accent)]" checked={f.board_report_enabled} onChange={(e) => setF({ ...f, board_report_enabled: e.target.checked })} />
+            <span className="font-semibold">{tr('Enviar el informe automáticamente cada mes', 'Send the report automatically every month')}</span>
+          </label>
+          <Field label={tr('Correos de la junta', 'Board e-mails')} hint={tr('Separados por comas.', 'Separated by commas.')}>
+            {(id) => <textarea id={id} className="ctl !min-h-20" placeholder="pastor@iglesia.org, junta@iglesia.org" value={f.board_emails ?? ''} onChange={(e) => setF({ ...f, board_emails: e.target.value })} />}
+          </Field>
+          <div className="grid sm:grid-cols-2 gap-5 max-w-xl">
+            <Field label={tr('Día del mes', 'Day of the month')}>
+              {(id) => <select id={id} className="ctl" value={f.board_report_day} onChange={(e) => setF({ ...f, board_report_day: Number(e.target.value) })}>{Array.from({ length: 28 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}</select>}
+            </Field>
+            <Field label={tr('Idioma del informe', 'Report language')}>
+              {(id) => <select id={id} className="ctl" value={f.board_report_lang} onChange={(e) => setF({ ...f, board_report_lang: e.target.value as Org['board_report_lang'] })}><option value="es">Español</option><option value="en">English</option></select>}
+            </Field>
+          </div>
+          {f.board_report_last && <p className="text-muted">{tr(`Último informe enviado: ${f.board_report_last}`, `Last report sent: ${f.board_report_last}`)}</p>}
+        </div>
+      </Card>
+      <ErrorNote error={error} />
+      <div className="flex flex-wrap gap-2.5">
+        <Button type="submit" variant="primary" size="lg" busy={busy === 'save'}>{tr('Guardar cambios', 'Save changes')}</Button>
+        {session!.features.email && <Button size="lg" icon={<Mail size={19} />} busy={busy === 'test'} disabled={!f.board_emails?.trim()} onClick={test}>{tr('Enviar el del mes pasado ahora', 'Send last month’s now')}</Button>}
+      </div>
     </form>
   )
 }
@@ -284,6 +377,7 @@ function ProfileTab() {
 
 function DataTab() {
   const { tr, num } = useApp()
+  const [online, setOnline] = useState(false)
   const qc = useQueryClient()
   const { fail } = useFeedback()
   const [busy, setBusy] = useState('')
@@ -336,6 +430,11 @@ function DataTab() {
           {importer('offerings', offeringsFile, tr('Ofrendas', 'Offerings'), tr('Columnas: Fecha, Miembro, Monto, Fondo, Método. Los miembros y fondos que no existan se crean solos.', 'Columns: Date, Member, Amount, Fund, Method. Members and funds that do not exist yet are created for you.'))}
         </div>
       </Card>
+      <Card title={tr('Donaciones en línea', 'Online giving')} hint={tr('Zelle, Tithe.ly, Square, PayPal o el estado de cuenta del banco. Las donaciones que ya estén en Sanctuary no se repiten.', 'Zelle, Tithe.ly, Square, PayPal or the bank statement. Gifts already in Sanctuary are not repeated.')}>
+        <Button icon={<Upload size={18} />} onClick={() => setOnline(true)}>{tr('Importar archivo de donaciones', 'Import a giving file')}</Button>
+      </Card>
+      <OnlineImport open={online} onClose={() => setOnline(false)} />
+      <BackupsCard />
       <Card title={tr('Descargar una copia', 'Download a copy')} hint={tr('Conviene guardar una copia de seguridad cada mes en una memoria USB o en la nube.', 'It is wise to keep a backup every month on a USB drive or in the cloud.')}>
         <div className="flex flex-wrap gap-2.5">
           <Button icon={<DatabaseBackup size={18} />} onClick={() => download('/data/export/backup.json', `sanctuary-${new Date().toISOString().slice(0, 10)}.json`).catch(fail)}>{tr('Copia completa', 'Full backup')}</Button>
@@ -344,6 +443,73 @@ function DataTab() {
         </div>
       </Card>
     </div>
+  )
+}
+
+interface BackupFile { name: string; kind: 'auto' | 'manual' | 'before-restore'; created_at: string; size: number }
+
+/** Copies kept on the server (one automatic copy a day), and restoring any of them or an uploaded file. */
+function BackupsCard() {
+  const { tr, lang } = useApp()
+  const qc = useQueryClient()
+  const { toast, fail } = useFeedback()
+  const { data: list = [], isPending } = useQuery({ queryKey: ['backups'], queryFn: () => api.get<BackupFile[]>('/data/backups') })
+  const [busy, setBusy] = useState('')
+  const [restoring, setRestoring] = useState<{ backup?: BackupFile; file?: File } | null>(null)
+  const [word, setWord] = useState('')
+  const [error, setError] = useState<unknown>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const kind = (k: BackupFile['kind']) => ({ auto: tr('Automática', 'Automatic'), manual: tr('Manual', 'Manual'), 'before-restore': tr('Antes de restaurar', 'Before a restore') })[k]
+  const when = (iso: string) => new Date(iso).toLocaleString(lang === 'es' ? 'es-US' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })
+  const create = async () => {
+    setBusy('create')
+    try { await api.post('/data/backups'); await qc.invalidateQueries({ queryKey: ['backups'] }); qc.invalidateQueries({ queryKey: ['setup'] }); toast(tr('Copia guardada en el servidor', 'Backup saved on the server')) } catch (e) { fail(e) } finally { setBusy('') }
+  }
+  const restore = async () => {
+    if (!restoring) return
+    setBusy('restore'); setError(null)
+    try {
+      const form = new FormData()
+      form.append('confirm', word)
+      if (restoring.backup) form.append('backup', restoring.backup.name)
+      if (restoring.file) form.append('file', restoring.file)
+      const r = await api.post<{ counts: Record<string, number> }>('/data/restore', form)
+      await qc.invalidateQueries()
+      setRestoring(null); setWord('')
+      toast(tr(`Datos restaurados: ${r.counts.members ?? 0} miembros y ${r.counts.offerings ?? 0} ofrendas`, `Data restored: ${r.counts.members ?? 0} members and ${r.counts.offerings ?? 0} offerings`))
+    } catch (e) { setError(e) } finally { setBusy('') }
+  }
+  const expected = lang === 'es' ? 'RESTAURAR' : 'RESTORE'
+  return (
+    <Card pad={false} title={tr('Copias de seguridad en el servidor', 'Backups on the server')}
+      hint={tr('Sanctuary guarda una copia automática cada día (las últimas 14). Puedes volver a cualquiera de ellas.', 'Sanctuary keeps an automatic copy every day (the last 14). You can go back to any of them.')}
+      action={<div className="flex flex-wrap gap-2">
+        <Button size="sm" icon={<DatabaseBackup size={16} />} busy={busy === 'create'} onClick={create}>{tr('Crear copia ahora', 'Back up now')}</Button>
+        <Button size="sm" variant="ghost" icon={<Upload size={16} />} onClick={() => fileRef.current?.click()}>{tr('Restaurar desde archivo', 'Restore from a file')}</Button>
+        <input ref={fileRef} type="file" accept=".json,.gz,application/json,application/gzip" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { setError(null); setRestoring({ file: f }) } }} />
+      </div>}>
+      {isPending ? <Spinner /> : list.length === 0 ? <p className="text-muted px-5 sm:px-6 pb-5 pt-3">{tr('Todavía no hay copias. La primera automática se crea en menos de una hora.', 'No copies yet. The first automatic one is made within the hour.')}</p> : (
+        <ul className="mt-4 border-t border-line divide-y divide-line max-h-[24rem] overflow-y-auto">
+          {list.map((b) => (
+            <li key={b.name} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 sm:px-6 py-2.5">
+              <span className="flex-1 min-w-[12rem]">{when(b.created_at)}<span className="block text-muted text-[0.85rem]">{kind(b.kind)} · {(b.size / 1024).toFixed(0)} KB</span></span>
+              <Button size="sm" variant="ghost" icon={<Download size={16} />} onClick={() => download(`/data/backups/${b.name}`, b.name.replace(/\.gz$/, '')).catch(fail)}>{tr('Descargar', 'Download')}</Button>
+              <Button size="sm" icon={<History size={16} />} onClick={() => { setError(null); setRestoring({ backup: b }) }}>{tr('Volver a esta copia', 'Restore this copy')}</Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Modal open={!!restoring} onClose={() => setRestoring(null)} title={tr('Restaurar una copia de seguridad', 'Restore a backup')}
+        footer={<><Button onClick={() => setRestoring(null)}>{tr('Cancelar', 'Cancel')}</Button><Button variant="danger" busy={busy === 'restore'} disabled={word.trim().toUpperCase() !== expected} onClick={restore}>{tr('Restaurar', 'Restore')}</Button></>}>
+        <div className="grid gap-4">
+          <p className="flex items-start gap-2.5 rounded-[11px] bg-warn-soft px-4 py-3"><TriangleAlert size={20} className="mt-0.5 shrink-0 text-warn" />
+            {tr('Todos los datos actuales de la iglesia (miembros, ofrendas, conteos, gastos…) se reemplazarán por los de la copia. Antes de hacerlo, Sanctuary guarda una copia de lo que hay ahora, por si necesitas regresar.', 'All the church’s current data (members, offerings, counts, expenses…) will be replaced by the copy. Before doing so, Sanctuary saves a copy of what is there now, in case you need to go back.')}</p>
+          <p>{restoring?.backup ? <>{tr('Copia del', 'Copy from')} <strong>{when(restoring.backup.created_at)}</strong></> : <>{tr('Archivo', 'File')}: <strong>{restoring?.file?.name}</strong></>}</p>
+          <Field label={tr(`Para confirmar, escribe ${expected}`, `To confirm, type ${expected}`)}>{(id) => <input id={id} className="ctl" autoComplete="off" value={word} onChange={(e) => setWord(e.target.value)} />}</Field>
+          <ErrorNote error={error} />
+        </div>
+      </Modal>
+    </Card>
   )
 }
 
@@ -393,7 +559,7 @@ function SystemTab() {
     <div className="grid gap-5 max-w-4xl">
       <Card title={tr('Servicios conectados', 'Connected services')} hint={tr('Estos ajustes los hace quien instaló Sanctuary, en el archivo .env del servidor.', 'These are set by whoever installed Sanctuary, in the server’s .env file.')}>
         <div className="grid gap-6">
-          {row(<Sparkles size={21} />, tr('Inteligencia artificial (Google Gemini)', 'Artificial intelligence (Google Gemini)'), !!session!.features.ai,
+          {row(<Sparkles size={21} />, tr('Inteligencia artificial (Google Gemini)', 'Artificial intelligence (Google Gemini)'), !!session!.features.aiConfigured,
             <>{tr(`Resúmenes, asistente, explicación de informes y redacción de correos. Modelo: ${ai.data?.model || '…'}.`, `Summaries, assistant, report explanations and e-mail drafting. Model: ${ai.data?.model || '…'}.`)}<AiTest /></>,
             <>{tr('Pega tu clave en', 'Paste your key into')} {code('GEMINI_API_KEY=')} {tr('dentro de', 'inside')} {code('backend/.env')} {tr('y reinicia el servidor. La clave se consigue gratis en aistudio.google.com/apikey.', 'and restart the server. You can get a key for free at aistudio.google.com/apikey.')}</>)}
           {row(<Mail size={21} />, tr('Envío de correos (SMTP)', 'Sending e-mail (SMTP)'), !!session!.features.email,
@@ -431,11 +597,12 @@ export default function SettingsPage() {
       <PageHeader title={tr('Configuración', 'Settings')} />
       <div className="mb-6">
         <Tabs value={tab} onChange={(v) => setParams({ tab: v }, { replace: true })} options={[
-          { value: 'iglesia', label: tr('Iglesia', 'Church') }, { value: 'fondos', label: tr('Fondos', 'Funds') }, { value: 'equipo', label: tr('Equipo e invitaciones', 'Team & invitations') },
+          { value: 'iglesia', label: tr('Iglesia', 'Church') }, { value: 'finanzas', label: tr('Finanzas', 'Finances') }, { value: 'fondos', label: tr('Fondos', 'Funds') }, { value: 'equipo', label: tr('Equipo e invitaciones', 'Team & invitations') },
           { value: 'perfil', label: tr('Mi perfil', 'My profile') }, { value: 'datos', label: tr('Importar y respaldar', 'Import & backup') }, { value: 'sistema', label: tr('IA, correo y SMS', 'AI, e-mail & SMS') },
         ]} />
       </div>
       {tab === 'iglesia' && <ChurchTab />}
+      {tab === 'finanzas' && <FinanceTab />}
       {tab === 'fondos' && <FundsTab />}
       {tab === 'equipo' && <TeamTab />}
       {tab === 'perfil' && <ProfileTab />}

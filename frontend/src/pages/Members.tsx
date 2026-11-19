@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronRight, LayoutGrid, List, Mail, Phone, Plus, Search, TriangleAlert, UserPlus, Users } from 'lucide-react'
 import { useApp } from '../lib/app'
+import { DuplicatesBanner } from '../components/MemberExtras'
 import { useMembers } from '../lib/data'
 import { useLabels } from '../lib/labels'
 import type { Member } from '../lib/types'
@@ -52,7 +53,8 @@ function MemberCard({ m }: { m: Member }) {
         </li>
       </ul>
 
-      <dl className="grid grid-cols-2 gap-3 rounded-[12px] bg-bg p-3.5">
+      <div className="grid grid-cols-2 gap-3 rounded-[12px] bg-bg p-3.5">
+        <dl className="contents">
         <div>
           <dt className="text-muted text-[0.82rem]">{tr('Este año', 'This year')}</dt>
           <dd className="font-bold text-[1.2rem] leading-tight">{money(m.total_year)}</dd>
@@ -61,13 +63,14 @@ function MemberCard({ m }: { m: Member }) {
           <dt className="text-muted text-[0.82rem]">{tr('Última ofrenda', 'Last gift')}</dt>
           <dd className="font-semibold leading-tight mt-0.5">{m.last_date ? date(m.last_date) : '—'}</dd>
         </div>
+        </dl>
         <div className="col-span-2">
           <Sparkline values={m.spark} height={30} label={tr('Ofrendas de los últimos 12 meses', 'Giving over the last 12 months')} />
           <p className="text-muted text-[0.82rem] mt-1">
             {m.offering_count === 0 ? tr('Todavía no tiene ofrendas registradas', 'No offerings recorded yet') : tr(`Ofrendó en ${m.months_given} de los últimos 12 meses`, `Gave in ${m.months_given} of the last 12 months`)}
           </p>
         </div>
-      </dl>
+      </div>
 
       {gaps.length > 0 && (
         <p className="flex items-start gap-2 text-warn text-[0.88rem] -mt-1">
@@ -124,6 +127,7 @@ export default function Members() {
         <Button variant="primary" icon={<UserPlus size={20} />} onClick={() => setAdding(true)}>{tr('Nuevo miembro', 'New member')}</Button>
       </PageHeader>
 
+      <DuplicatesBanner />
       <div className="grid gap-3 mb-5">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[240px] max-w-xl">

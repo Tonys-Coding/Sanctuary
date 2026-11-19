@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Markdown from 'react-markdown'
-import { CalendarCheck, CalendarDays, ClipboardList, Download, FileSpreadsheet, HandCoins, Layers, List, Mail, Printer, Sparkles, UserRound, Users, Wallet, X } from 'lucide-react'
+import { CalendarCheck, CalendarDays, ClipboardList, Download, FileSpreadsheet, HandCoins, Layers, List, Mail, Printer, Receipt, Scale, Sparkles, UserRound, Users, Wallet, X } from 'lucide-react'
 import { api, download } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useFunds } from '../lib/data'
@@ -14,7 +14,7 @@ import { MemberPicker } from '../components/MemberPicker'
 import { EmailComposer } from '../components/EmailComposer'
 import { usePdfPreview } from '../components/PdfPreview'
 
-type Type = 'summary' | 'by_member' | 'by_fund' | 'by_month' | 'by_method' | 'transactions' | 'member' | 'batches'
+type Type = 'summary' | 'by_member' | 'by_fund' | 'by_month' | 'by_method' | 'transactions' | 'member' | 'batches' | 'treasurer' | 'expenses'
 
 export function ReportView({ report, note }: { report: Report; note?: string | null }) {
   const { tr, money, date, num, session } = useApp()
@@ -48,7 +48,7 @@ export function ReportView({ report, note }: { report: Report; note?: string | n
         <section key={si} className="mb-8 last:mb-0">
           {s.title && <h3 className="font-semibold text-[1.08rem] mb-2">{s.title}</h3>}
           {s.rows.length === 0 ? <p className="text-muted py-3">{tr('No hay registros en este periodo.', 'No records in this period.')}</p> : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto relative">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b-2 border-line-strong">
@@ -80,14 +80,15 @@ export function ReportView({ report, note }: { report: Report; note?: string | n
 
 export default function Reports() {
   const { tr, lang, session } = useApp()
+  const fys = session!.org.fiscal_year_start || 1
   const labels = useLabels()
   const { fail } = useFeedback()
   const preview = usePdfPreview()
   const { data: funds = [] } = useFunds(true)
   const [params] = useSearchParams()
   const preset = params.get('preset')
-  const [type, setType] = useState<Type>('summary')
-  const [range, setRange] = useState<RangeKey>(preset === 'mes' ? 'last_month' : 'this_year')
+  const [type, setType] = useState<Type>(preset === 'tesoreria' ? 'treasurer' : preset === 'gastos' ? 'expenses' : 'summary')
+  const [range, setRange] = useState<RangeKey>(preset === 'mes' || preset === 'tesoreria' ? 'last_month' : 'this_year')
   const [custom, setCustom] = useState({ from: '', to: '' })
   const [fundId, setFundId] = useState('')
   const [method, setMethod] = useState('')
@@ -107,11 +108,14 @@ export default function Reports() {
     { value: 'transactions', icon: <List size={22} />, label: tr('Detalle', 'Detail'), text: tr('Cada ofrenda, una por línea.', 'Every offering, one per line.') },
     { value: 'member', icon: <UserRound size={22} />, label: tr('Estado de un miembro', 'One member’s statement'), text: tr('Todo lo que dio una persona.', 'Everything one person gave.') },
     { value: 'batches', icon: <ClipboardList size={22} />, label: tr('Conteos', 'Counts'), text: tr('Lista de cultos contados.', 'List of counted services.') },
+    { value: 'treasurer', icon: <Scale size={22} />, label: tr('Informe de tesorería', 'Treasurer’s report'), text: tr('Saldo, ingresos, gastos, presupuesto y depósitos.', 'Balance, income, expenses, budget and deposits.') },
+    { value: 'expenses', icon: <Receipt size={22} />, label: tr('Gastos', 'Expenses'), text: tr('Cada gasto pagado, uno por línea.', 'Every expense paid, one per line.') },
   ]
+  const noFilters = type === 'batches' || type === 'treasurer' || type === 'expenses'
 
-  const dates = range === 'custom' ? custom : rangeFor(range)
+  const dates = range === 'custom' ? custom : rangeFor(range, fys)
   const ready = !!dates.from && !!dates.to && (type !== 'member' || !!memberId)
-  const spec = { type, ...dates, fundId: type === 'batches' ? '' : fundId, method: type === 'batches' ? '' : method, memberId: type === 'member' ? memberId : null, lang: reportLang }
+  const spec = { type, ...dates, fundId: noFilters ? '' : fundId, method: noFilters ? '' : method, memberId: type === 'member' ? memberId : null, lang: reportLang }
   const { data: report, isFetching, error } = useQuery({
     queryKey: ['report', spec], queryFn: () => api.post<Report>('/reports/run', spec), enabled: ready, placeholderData: (p) => p,
   })
@@ -132,9 +136,10 @@ export default function Reports() {
       <PageHeader title={tr('Informes', 'Reports')} subtitle={tr('Elige qué quieres ver y de qué periodo. El informe aparece abajo, listo para imprimir, descargar o enviar por correo.', 'Choose what you want to see and for which period. The report appears below, ready to print, download or e-mail.')} />
 
       {/* The reports a treasurer asks for most, one click each. */}
-      <div className="grid sm:grid-cols-3 gap-3 mb-5 no-print">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5 no-print">
         {([
-          { icon: <CalendarCheck size={24} />, title: tr('Informe del mes pasado', 'Last month’s report'), text: tr('Para presentar a la junta o al pastor', 'To present to the board or the pastor'), t: 'summary' as Type, r: 'last_month' as RangeKey },
+          { icon: <CalendarCheck size={24} />, title: tr('Informe del mes pasado', 'Last month’s report'), text: tr('Ofrendas del mes, para la junta o el pastor', 'The month’s giving, for the board or the pastor'), t: 'summary' as Type, r: 'last_month' as RangeKey },
+          { icon: <Scale size={24} />, title: tr('Tesorería del mes pasado', 'Last month’s treasury'), text: tr('Saldo, ingresos y gastos', 'Balance, income and expenses'), t: 'treasurer' as Type, r: 'last_month' as RangeKey },
           { icon: <Layers size={24} />, title: tr('Resumen del año', 'Year summary'), text: tr('Todo lo recibido este año', 'Everything received this year'), t: 'summary' as Type, r: 'this_year' as RangeKey },
           { icon: <Users size={24} />, title: tr('Lo que dio cada miembro', 'What each member gave'), text: tr('Este año, persona por persona', 'This year, person by person'), t: 'by_member' as Type, r: 'this_year' as RangeKey },
         ]).map((p) => {
@@ -168,7 +173,7 @@ export default function Reports() {
           <h2 className="font-semibold text-[1.05rem] mt-7 mb-4">{tr('2. Periodo y filtros', '2. Period and filters')}</h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Field label={tr('Periodo', 'Period')}>
-              {(id) => <select id={id} className="ctl" value={range} onChange={(e) => setRange(e.target.value as RangeKey)}>{rangeOptions(tr, false).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>}
+              {(id) => <select id={id} className="ctl" value={range} onChange={(e) => setRange(e.target.value as RangeKey)}>{rangeOptions(tr, false, fys).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>}
             </Field>
             {range === 'custom' && (<>
               <Field label={tr('Desde', 'From')}>{(id) => <input id={id} type="date" className="ctl" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} />}</Field>
@@ -177,7 +182,7 @@ export default function Reports() {
             {type === 'member' && (
               <Field label={tr('Miembro', 'Member')} className="sm:col-span-2">{(id) => <MemberPicker id={id} value={memberId} onChange={setMemberId} allowLoose={false} />}</Field>
             )}
-            {type !== 'batches' && (<>
+            {!noFilters && (<>
               <Field label={tr('Fondo', 'Fund')}>
                 {(id) => <select id={id} className="ctl" value={fundId} onChange={(e) => setFundId(e.target.value)}><option value="">{tr('Todos', 'All')}</option>{funds.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>}
               </Field>

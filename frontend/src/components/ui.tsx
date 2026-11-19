@@ -165,7 +165,7 @@ export function Empty({ icon, title, children, action }: { icon?: ReactNode; tit
   return (
     <div className="text-center py-12 px-6 max-w-md mx-auto">
       {icon && <div className="inline-grid place-items-center size-14 rounded-full bg-accent-soft text-accent-ink mb-4">{icon}</div>}
-      <h3 className="font-semibold text-[1.1rem]">{title}</h3>
+      <h2 className="font-semibold text-[1.1rem]">{title}</h2>
       {children && <p className="text-muted mt-1.5">{children}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>

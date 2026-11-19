@@ -37,6 +37,7 @@ const FKS: Record<string, Record<string, string>> = {
 const ORG_FIELDS = [
   'name', 'legal_name', 'tax_id', 'address', 'city', 'state', 'postal_code', 'country', 'phone', 'email', 'pastor_name', 'treasurer_name',
   'currency', 'statement_note', 'timezone', 'fiscal_year_start', 'idle_minutes', 'opening_balance', 'opening_balance_date',
+  'board_emails', 'board_report_enabled', 'board_report_day', 'board_report_lang', 'ai_enabled',
 ];
 
 export async function buildBackup(orgId: string) {

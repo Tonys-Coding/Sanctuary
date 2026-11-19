@@ -544,7 +544,8 @@ test('v3 · bank deposits: slip, deposited, reconciled; deposited counts cannot 
 
   const detail = ok(await c.get(`/deposits/${dep.id}`));
   assert.deepEqual(detail.denominations, [{ value: 20, count: 2 }, { value: 1, count: 5 }]);
-  assert.equal(detail.checks[0].check_number, '555');
+  assert.equal(detail.check_list[0].check_number, '555');
+  assert.equal(detail.checks, 100);
   const slip = await c.get(`/deposits/${dep.id}/slip.pdf`);
   assert.equal(slip.body.subarray(0, 4).toString(), '%PDF');
 
@@ -792,4 +793,13 @@ test('v3 · AI reads photos of the notebook, and each church can turn AI off', a
   assert.equal(off.body.error, 'ai_disabled');
   ok(await c.patch('/org', { ...org, ai_enabled: true }));
   assert.equal(ok(await c.get('/auth/me')).features.ai, true);
+});
+
+test('v3 · importing members never breaks on a repeated envelope number', async () => {
+  const csv = 'Nombre,Apellido,Sobre\nRosa,Uno,900\nRosa,Dos,900\nRosa,Tres,12\n';
+  const r = ok(await c.form('/data/import/members', {}, { name: 'm.csv', type: 'text/csv', data: csv }));
+  assert.equal(r.created, 3);
+  assert.equal(r.envelopeConflicts, 2); // the second "900" and "12" (José García's) are left empty
+  const rows = ok(await c.get('/members')).filter((m: any) => m.first_name === 'Rosa');
+  assert.deepEqual(rows.map((m: any) => m.envelope_number).sort(), ['900', null, null].sort());
 });

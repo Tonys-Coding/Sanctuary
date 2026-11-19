@@ -24,6 +24,11 @@ interface AppState {
 const Ctx = createContext<AppState>(null as unknown as AppState)
 export const useApp = () => useContext(Ctx)
 
+const SESSION_KEY = 'sanctuary.session'
+/** Removes what was kept on this computer for offline use (never the offerings still waiting to be sent). */
+export function forgetOffline() {
+  try { for (const k of [SESSION_KEY, 'sanctuary.offline.members', 'sanctuary.offline.funds']) localStorage.removeItem(k) } catch { /* private mode */ }
+}
 const stored = (k: string) => { try { return localStorage.getItem(k) } catch { return null } }
 const store = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* private mode */ } }
 
@@ -54,6 +59,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setSession = useCallback((s: Session | null) => {
     setSessionState(s)
+    // Kept so the app can still open (and keep recording offerings) if the internet is down when it loads.
+    if (s) store(SESSION_KEY, JSON.stringify(s)); else forgetOffline()
     if (s) {
       // The account remembers language and theme, so they follow the person to any computer.
       setLangState(s.user.language); store('sanctuary.lang', s.user.language)
@@ -65,7 +72,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setSession(await api.get<Session>('/auth/me'))
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) setSessionState(null)
+      if (e instanceof ApiError && e.status === 401) { setSessionState(null); forgetOffline() }
+      else if (e instanceof ApiError && e.code === 'network') {
+        try { const cached = JSON.parse(stored(SESSION_KEY) || 'null'); if (cached) setSessionState(cached) } catch { /* nothing usable */ }
+      }
     }
   }, [setSession])
 
@@ -74,7 +84,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // If the session stops being valid while the app is open, go back to the sign-in page
   // instead of showing screens whose data can no longer load.
   useEffect(() => {
-    setSessionLostHandler(() => { qc.clear(); setSessionState(null) })
+    setSessionLostHandler(() => { qc.clear(); forgetOffline(); setSessionState(null) })
     return () => setSessionLostHandler(null)
   }, [qc])
 
@@ -90,6 +100,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await api.post('/auth/logout').catch(() => {})
     qc.clear()
+    forgetOffline()
     setSessionState(null)
   }, [qc])
 

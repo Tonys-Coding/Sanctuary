@@ -14,6 +14,7 @@ import { MemberForm } from '../components/MemberForm'
 import { EmailComposer } from '../components/EmailComposer'
 import { SmsComposer } from '../components/SmsComposer'
 import { usePdfPreview } from '../components/PdfPreview'
+import { HouseholdCard, NonCashCard, PersonalLinkCard } from '../components/MemberExtras'
 
 interface Detail {
   member: Member
@@ -21,6 +22,7 @@ interface Detail {
   monthly: { month: string; total: number }[]
   byFund: { id: string; name: string; color_slot: number; total: number }[]
   yearly: { year: number; total: number }[]
+  household: { id: string; name: string; joint_statement: boolean; members: { id: string; full_name: string; avatar_file: string | null }[] } | null
 }
 
 export default function MemberDetail() {
@@ -103,7 +105,7 @@ export default function MemberDetail() {
         <Card><Empty title={tr('Todavía no tiene ofrendas registradas', 'No offerings recorded yet')} action={<Button variant="primary" onClick={() => openOffering({ memberId: m.id })}>{tr('Registrar la primera', 'Record the first one')}</Button>} /></Card>
       ) : (<>
         <section className="card grid grid-cols-2 lg:grid-cols-4 [&>*]:p-5 sm:[&>*]:p-6 [&>*]:border-line [&>*:nth-child(even)]:border-l lg:[&>*+*]:border-l [&>*:nth-child(n+3)]:border-t lg:[&>*:nth-child(n+3)]:border-t-0">
-          <div><p className="text-muted text-[0.93rem]">{tr(`Dado en ${year}`, `Given in ${year}`)}</p><p className="mt-1.5 flex flex-wrap items-center gap-2"><span className="text-[1.6rem] font-bold leading-none">{money(s.total_year)}</span><Delta value={change} /></p></div>
+          <div><p className="text-muted text-[0.93rem]">{session!.org.fiscal_year_start === 1 ? tr(`Dado en ${year}`, `Given in ${year}`) : tr('Dado este año fiscal', 'Given this fiscal year')}</p><p className="mt-1.5 flex flex-wrap items-center gap-2"><span className="text-[1.6rem] font-bold leading-none">{money(s.total_year)}</span><Delta value={change} /></p></div>
           <div><p className="text-muted text-[0.93rem]">{tr('Total histórico', 'All-time total')}</p><p className="mt-1.5 text-[1.6rem] font-bold leading-none">{money(s.total_all)}</p></div>
           <div><p className="text-muted text-[0.93rem]">{tr('Ofrenda promedio', 'Average gift')}</p><p className="mt-1.5 text-[1.6rem] font-bold leading-none">{money(s.average)}</p><p className="text-muted text-[0.87rem] mt-2">{tr(`${num(s.count)} ofrendas`, `${num(s.count)} gifts`)}</p></div>
           <div><p className="text-muted text-[0.93rem]">{tr('Última ofrenda', 'Last gift')}</p><p className="mt-1.5 text-[1.6rem] font-bold leading-none">{date(s.last_date)}</p><p className="text-muted text-[0.87rem] mt-2">{tr('Primera:', 'First:')} {date(s.first_date)}</p></div>
@@ -120,6 +122,11 @@ export default function MemberDetail() {
           <div className="mt-4 border-t border-line">{offerings ? <OfferingTable rows={offerings.rows} hideMember /> : <Spinner />}</div>
         </Card>
       </>)}
+      <div className="grid lg:grid-cols-3 gap-5 items-start">
+        <HouseholdCard member={m} household={data.household} />
+        <PersonalLinkCard member={m} />
+        <NonCashCard member={m} />
+      </div>
       <MemberForm open={editing} member={m} onClose={() => setEditing(false)} />
       <SmsComposer open={texting} onClose={() => setTexting(false)} preselect={[m.id]} />
       {m.email && (

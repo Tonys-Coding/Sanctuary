@@ -85,7 +85,7 @@ async function detail(orgId: string, id: string) {
   const denom = new Map<number, number>();
   for (const b of batches) for (const [k, v] of Object.entries(b.denominations || {})) denom.set(Number(k), (denom.get(Number(k)) || 0) + Number(v));
   const denominations = [...denom.entries()].filter(([, n]) => n > 0).sort((a, b) => b[0] - a[0]).map(([value, count]) => ({ value, count }));
-  return { ...d, batches: batches.map(({ denominations: _d, ...b }) => b), checks, denominations };
+  return { ...d, batches: batches.map(({ denominations: _d, ...b }) => b), check_list: checks, denominations };
 }
 
 r.get('/:id', async (req, res) => {
@@ -99,7 +99,7 @@ r.get('/:id/slip.pdf', async (req, res) => {
   if (!d) throw notFound();
   const lang: Lang = req.query.lang === 'en' || req.query.lang === 'es' ? req.query.lang : req.user.language;
   const org = await one('SELECT * FROM organizations WHERE id = $1', [req.user.orgId]);
-  const pdf = await depositSlipPdf(org, { ...d, checkTotal: d.checks.reduce((a: number, c: any) => a + c.amount, 0) }, lang);
+  const pdf = await depositSlipPdf(org, { ...d, checks: d.check_list, checkTotal: d.checks }, lang);
   res.type('application/pdf').attachment(`${lang === 'es' ? 'deposito' : 'deposit'}-${d.date}.pdf`).send(pdf);
 });
 

@@ -6,7 +6,8 @@
   "scripts": {
     "capture": "node capture.mjs",
     "studio": "remotion studio src/index.ts",
-    "render": "node render.mjs"
+    "render": "node render.mjs",
+    "narrate": "node --no-warnings narrate.mjs"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.544",

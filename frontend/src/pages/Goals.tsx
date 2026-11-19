@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Pencil, Plus, Target, Trash2 } from 'lucide-react'
+import { HandHeart, Pencil, Plus, Target, Trash2 } from 'lucide-react'
+import { PledgesModal } from '../components/Pledges'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useFunds, useGoals } from '../lib/data'
@@ -20,6 +21,7 @@ export default function Goals() {
   const [f, setF] = useState<ReturnType<typeof blank> | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const [pledging, setPledging] = useState<Goal | null>(null)
   const today = todayIso()
 
   const edit = (g?: Goal) => { setError(null); setF(g ? { id: g.id, name: g.name, description: g.description || '', fund_id: g.fund_id || '', target_amount: String(g.target_amount), start_date: g.start_date, end_date: g.end_date } : blank()) }
@@ -72,19 +74,22 @@ export default function Goals() {
                   <span className="text-muted">{tr('de', 'of')} {money(g.target_amount, { whole: true })}</span>
                   <span className="ml-auto">{pct >= 100 ? <Badge tone="good">{tr('¡Meta lograda!', 'Goal reached!')}</Badge> : <span className="font-semibold">{pct}%</span>}</span>
                 </p>
-                <div className="mt-3"><ProgressBar value={g.raised} target={g.target_amount} /></div>
+                <div className="mt-3"><ProgressBar value={g.raised} target={g.target_amount} label={g.name} /></div>
                 <p className="text-muted text-[0.9rem] mt-3">
+                  {g.pledge_count > 0 && <>{tr(`${num(g.pledge_count)} compromisos por ${money(g.pledged, { whole: true })}`, `${num(g.pledge_count)} pledges for ${money(g.pledged, { whole: true })}`)} · </>}
                   {tr(`${num(g.givers)} personas han aportado`, `${num(g.givers)} people have contributed`)}
                   {pct < 100 && (days >= 0
                     ? tr(` · faltan ${money(left, { whole: true })} y ${days} días`, ` · ${money(left, { whole: true })} and ${days} days to go`)
                     : tr(` · terminó faltando ${money(left, { whole: true })}`, ` · ended ${money(left, { whole: true })} short`))}
                 </p>
+                <div className="mt-4"><Button size="sm" icon={<HandHeart size={16} />} onClick={() => setPledging(g)}>{tr('Compromisos', 'Pledges')}</Button></div>
               </Card>
             )
           })}
         </div>
       )}
 
+      {pledging && <PledgesModal goal={goals?.find((x) => x.id === pledging.id) || pledging} onClose={() => setPledging(null)} />}
       <Modal open={!!f} onClose={() => setF(null)} title={f?.id ? tr('Editar meta', 'Edit goal') : tr('Nueva meta', 'New goal')}
         footer={<><Button onClick={() => setF(null)}>{tr('Cancelar', 'Cancel')}</Button><Button variant="primary" busy={busy} onClick={save} disabled={!f?.name.trim() || !(parseAmount(f?.target_amount || '') > 0)}>{tr('Guardar', 'Save')}</Button></>}>
         {f && (
