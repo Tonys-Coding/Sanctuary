@@ -25,3 +25,4 @@ Thumbs.db
 .idea/
 # Sanctuary 2: uploaded photos and logos live outside git
 backend/uploads/
+backend/backups/

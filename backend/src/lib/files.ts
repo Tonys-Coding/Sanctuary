@@ -8,7 +8,7 @@ import { HttpError } from '../http';
 
 export const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-const SAFE_NAME = /^[a-f0-9-]{36}\.(webp|png)$/;
+const SAFE_NAME = /^[a-f0-9-]{36}\.(webp|png|pdf)$/;
 
 export const filePath = (orgId: string, name: string) => {
   if (!SAFE_NAME.test(name)) throw new HttpError(404, 'not_found');
@@ -35,6 +35,29 @@ export async function saveImage(orgId: string, file: Express.Multer.File | undef
   } catch {
     throw new HttpError(400, 'file_not_image');
   }
+  const name = `${crypto.randomUUID()}.${ext}`;
+  await fs.writeFile(path.join(dir, name), out);
+  return name;
+}
+
+/** Stores a receipt: photos are shrunk to a readable size, PDFs are kept as they are. */
+export async function saveReceipt(orgId: string, file: Express.Multer.File | undefined): Promise<string> {
+  if (!file) throw new HttpError(400, 'file_required');
+  const dir = path.join(env.uploadDir, orgId);
+  await fs.mkdir(dir, { recursive: true });
+  let out: Buffer;
+  let ext: string;
+  if (file.mimetype === 'application/pdf' && file.buffer.subarray(0, 5).toString() === '%PDF-') {
+    out = file.buffer;
+    ext = 'pdf';
+  } else if (/^image\/(jpeg|png|webp|heic|heif|gif)$/.test(file.mimetype)) {
+    try {
+      out = await sharp(file.buffer).rotate().resize(1600, 1600, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
+    } catch {
+      throw new HttpError(400, 'file_not_image');
+    }
+    ext = 'webp';
+  } else throw new HttpError(400, 'file_not_receipt');
   const name = `${crypto.randomUUID()}.${ext}`;
   await fs.writeFile(path.join(dir, name), out);
   return name;

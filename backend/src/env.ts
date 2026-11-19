@@ -42,6 +42,7 @@ export const env = {
     from: process.env.SMTP_FROM || 'Sanctuary <no-reply@localhost>',
   },
   uploadDir: process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads'),
+  backupDir: process.env.BACKUP_DIR || path.join(__dirname, '..', 'backups'),
 };
 
 export const features = () => ({ ai: !!env.geminiKey, email: !!env.smtp.host, sms: !!(env.twilio.sid && env.twilio.token && env.twilio.from) });

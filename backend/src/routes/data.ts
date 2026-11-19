@@ -1,9 +1,14 @@
 import { Router } from 'express';
 import { q, tx } from '../db';
-import { HttpError, audit, isoDate } from '../http';
+import { HttpError, audit, isoDate, parse, todayIn } from '../http';
 import { parseCsv, toCsv } from '../lib/csv';
 import { upload } from '../lib/files';
+import multer from 'multer';
+import { buildBackup, listBackups, parseBackup, readBackupFile, restoreBackup, saveBackupFile } from '../lib/backup';
 import { fullName } from './members';
+import { z } from 'zod';
+import { matchMember, methodFor, norm as onlineNorm, parseOnline } from '../lib/online';
+import { method, money, optUuid, text } from '../lib/z';
 
 const r = Router();
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -142,6 +147,65 @@ r.post('/import/offerings', upload.single('file'), async (req, res) => {
   res.json({ created, newMembers, newFunds, errors: errors.slice(0, 50), errorCount: errors.length });
 });
 
+// ─── Online giving (Zelle, Tithe.ly, Square, PayPal, bank exports) ───────────
+
+/** Step 1: read the file and show what would be saved — matched members, the fund, and gifts already in Sanctuary. */
+r.post('/import/online/preview', upload.single('file'), async (req, res) => {
+  const rows = readCsv(req.file);
+  const forced = ['tithely', 'square', 'paypal', 'zelle', 'bank', 'other'].includes(req.body?.source) ? req.body.source : undefined;
+  const parsed = parseOnline(rows, forced);
+  if (parsed.missing.length) throw new HttpError(400, 'csv_missing_columns', parsed.missing);
+  const [members, funds, existing] = await Promise.all([
+    q(`SELECT id, ${fullName} AS name, email, first_name, last_name FROM members m WHERE org_id = $1 AND archived_at IS NULL`, [req.user.orgId]),
+    q('SELECT id, name FROM funds WHERE org_id = $1 AND archived_at IS NULL ORDER BY sort_order', [req.user.orgId]),
+    q('SELECT external_ref FROM offerings WHERE org_id = $1 AND external_ref = ANY($2::text[])', [req.user.orgId, parsed.rows.map((r) => r.external_ref)]),
+  ]);
+  const already = new Set(existing.map((e) => e.external_ref));
+  const fundByName = new Map(funds.map((f) => [onlineNorm(f.name), f.id]));
+  const tithes = funds.find((f) => /diezmo|tithe/i.test(f.name));
+  res.json({
+    source: parsed.source,
+    method: methodFor(parsed.source),
+    skipped: parsed.skipped.slice(0, 100),
+    skippedCount: parsed.skipped.length,
+    rows: parsed.rows.map((r) => {
+      const m = matchMember(r, members);
+      const fundGuess = r.fund ? fundByName.get(onlineNorm(r.fund)) : /diezmo|tithe/i.test(r.memo || '') ? tithes?.id : undefined;
+      return { ...r, member_id: m?.member.id ?? null, member_name: m?.member.name ?? null, matched_by: m?.by ?? null, fund_id: fundGuess ?? null, duplicate: already.has(r.external_ref) };
+    }),
+  });
+});
+
+/** Step 2: save the reviewed gifts. Ones already imported are skipped by their reference. */
+r.post('/import/online/commit', async (req, res) => {
+  const b = parse(z.object({
+    source: z.string().max(20),
+    rows: z.array(z.object({
+      date: z.string().regex(isoDate), member_id: optUuid, fund_id: z.string().uuid(), amount: money, method: method.default('card'),
+      external_ref: z.string().min(3).max(200), memo: text(300), fee: z.number().nullish(),
+    })).min(1).max(5000),
+  }), req.body);
+  const owned = async (table: string, ids: string[]) =>
+    new Set((await q(`SELECT id FROM ${table} WHERE org_id = $1 AND id = ANY($2::uuid[])`, [req.user.orgId, ids])).map((x) => x.id));
+  const memberIds = await owned('members', b.rows.flatMap((r) => (r.member_id ? [r.member_id] : [])));
+  const fundIds = await owned('funds', b.rows.map((r) => r.fund_id));
+  let created = 0;
+  let duplicates = 0;
+  await tx(async (c) => {
+    for (const row of b.rows) {
+      if (!fundIds.has(row.fund_id) || (row.member_id && !memberIds.has(row.member_id))) throw new HttpError(400, 'invalid_input');
+      const note = [row.memo, row.fee ? `${req.user.language === 'es' ? 'Comisión' : 'Fee'}: ${row.fee.toFixed(2)}` : null].filter(Boolean).join(' · ').slice(0, 500) || null;
+      const ins = await q(
+        `INSERT INTO offerings (org_id, member_id, fund_id, amount, date, method, notes, external_ref, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (org_id, external_ref) WHERE external_ref IS NOT NULL DO NOTHING RETURNING id`,
+        [req.user.orgId, row.member_id ?? null, row.fund_id, row.amount, row.date, row.method, note, row.external_ref, req.user.id], c);
+      if (ins.length) created++; else duplicates++;
+    }
+  });
+  await audit(req, 'import', 'offering', null, `${b.source} · ${created}`);
+  res.json({ created, duplicates });
+});
+
 r.get('/export/members.csv', async (req, res) => {
   const rows = await q('SELECT * FROM members WHERE org_id = $1 AND archived_at IS NULL ORDER BY first_name, last_name', [req.user.orgId]);
   const es = req.user.language === 'es';
@@ -155,11 +219,42 @@ r.get('/export/members.csv', async (req, res) => {
 
 /** Complete copy of the church's data as one JSON file — a simple backup anyone can keep. */
 r.get('/export/backup.json', async (req, res) => {
-  const tables = ['organizations', 'members', 'funds', 'batches', 'offerings', 'goals', 'tax_statements'];
-  const out: Record<string, unknown> = { exported_at: new Date().toISOString(), app: 'Sanctuary' };
-  for (const t of tables) out[t] = await q(`SELECT * FROM ${t} WHERE ${t === 'organizations' ? 'id' : 'org_id'} = $1`, [req.user.orgId]);
   await audit(req, 'export', 'backup', null, '');
-  res.attachment(`sanctuary-respaldo-${new Date().toISOString().slice(0, 10)}.json`).json(out);
+  res.attachment(`sanctuary-respaldo-${todayIn(req.user.tz)}.json`).json(await buildBackup(req.user.orgId));
+});
+
+// ─── Backups kept on the server ──────────────────────────────────────────────
+
+r.get('/backups', async (req, res) => {
+  res.json(await listBackups(req.user.orgId));
+});
+
+r.post('/backups', async (req, res) => {
+  const name = await saveBackupFile(req.user.orgId, 'manual');
+  await audit(req, 'create', 'backup', null, name);
+  res.status(201).json({ name });
+});
+
+r.get('/backups/:name', async (req, res) => {
+  const data = await readBackupFile(req.user.orgId, String(req.params.name));
+  res.attachment(String(req.params.name).replace(/\.gz$/, '')).json(data);
+});
+
+const bigUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+
+/**
+ * Replaces all the church's data with a backup: one kept on the server (`backup`) or an uploaded file.
+ * The person must type RESTAURAR (or RESTORE) to confirm.
+ */
+r.post('/restore', bigUpload.single('file'), async (req, res) => {
+  const confirm = String(req.body?.confirm || '').trim().toUpperCase();
+  if (confirm !== 'RESTAURAR' && confirm !== 'RESTORE') throw new HttpError(400, 'restore_confirm');
+  const name = typeof req.body?.backup === 'string' ? req.body.backup : '';
+  const data = name ? await readBackupFile(req.user.orgId, name) : req.file ? await parseBackup(req.file.buffer) : null;
+  if (!data) throw new HttpError(400, 'file_required');
+  const result = await restoreBackup(req.user.orgId, data);
+  await audit(req, 'restore', 'backup', null, `${name || req.file?.originalname || ''} · ${result.counts.offerings} · ${result.safety}`);
+  res.json(result);
 });
 
 export default r;

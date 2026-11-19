@@ -6,6 +6,8 @@ import { HttpError } from '../http';
 let transport: Transporter | null = null;
 function getTransport() {
   if (!env.smtp.host) return null;
+  // SMTP_HOST=test keeps messages in memory (automated tests and demos), nothing leaves the machine.
+  if (env.smtp.host === 'test') return (transport ??= nodemailer.createTransport({ streamTransport: true, buffer: true }));
   transport ??= nodemailer.createTransport({
     host: env.smtp.host,
     port: env.smtp.port,

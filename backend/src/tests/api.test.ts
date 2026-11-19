@@ -98,7 +98,18 @@ function client() {
     const type = res.headers.get('content-type') || '';
     return { status: res.status, body: type.includes('json') ? await res.json() : Buffer.from(await res.arrayBuffer()) } as { status: number; body: any };
   };
-  return { get: (p: string) => call('GET', p), post: (p: string, b?: unknown) => call('POST', p, b ?? {}), patch: (p: string, b: unknown) => call('PATCH', p, b), del: (p: string) => call('DELETE', p) };
+  const form = async (path: string, fields: Record<string, string>, file?: { name: string; type: string; data: Buffer | string }) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+    if (file) fd.set("file", new Blob([typeof file.data === "string" ? file.data : new Uint8Array(file.data)], { type: file.type }), file.name);
+    const res = await fetch(base + path, { method: 'POST', headers: { cookie }, body: fd });
+    const type = res.headers.get('content-type') || '';
+    return { status: res.status, body: type.includes('json') ? await res.json() : Buffer.from(await res.arrayBuffer()) } as { status: number; body: any };
+  };
+  return {
+    get: (p: string) => call('GET', p), post: (p: string, b?: unknown) => call('POST', p, b ?? {}), patch: (p: string, b: unknown) => call('PATCH', p, b),
+    put: (p: string, b: unknown) => call('PUT', p, b), del: (p: string) => call('DELETE', p), form,
+  };
 }
 
 const a = client(); // founder of church A
@@ -362,4 +373,423 @@ test('AI: a retired model is replaced by the newest stable Flash model, and the 
   assert.ok(r.body.reply.length > 0);
   assert.equal((await a.get('/ai/status')).body.model, 'gemini-3.6-flash');
   retiredModel = '';
+});
+
+// ─── v3 ──────────────────────────────────────────────────────────────────────
+
+const c = client(); // church C, used by the v3 tests
+let fundC = '';
+let offeringsFundC = '';
+const ok = (r: { status: number; body: any }, status = 200) => { assert.equal(r.status, status, JSON.stringify(r.body)); return r.body; };
+
+test('v3 · the church’s own time zone decides what "today" is', async () => {
+  const { todayIn, hourIn } = await import('../http.js');
+  const noonUtc = new Date('2026-01-01T12:00:00Z');
+  assert.equal(todayIn('Pacific/Kiritimati', noonUtc), '2026-01-02');
+  assert.equal(todayIn('Pacific/Pago_Pago', noonUtc), '2026-01-01');
+  assert.equal(todayIn('America/Chicago', new Date('2026-03-02T03:30:00Z')), '2026-03-01');
+  assert.equal(hourIn('America/Chicago', new Date('2026-07-01T14:00:00Z')), 9);
+
+  const r = ok(await c.post('/auth/register', { mode: 'create', churchName: 'Iglesia C', fullName: 'Carla Tesorera', email: 'carla@c.test', password: 'password-c1', timezone: 'America/Chicago' }), 201);
+  assert.equal(r.org.timezone, 'America/Chicago');
+  const org = r.org;
+  assert.equal((await c.patch('/org', { ...org, timezone: 'Mars/Olympus' })).status, 400);
+  const saved = ok(await c.patch('/org', { ...org, timezone: 'America/Los_Angeles', fiscal_year_start: 7, idle_minutes: 10 }));
+  assert.equal(saved.timezone, 'America/Los_Angeles');
+  assert.equal(saved.fiscal_year_start, 7);
+  // The change is in the activity log with what it was before and after.
+  const act = ok(await c.get('/org/activity'));
+  const entry = act.find((e: any) => e.entity === 'org');
+  assert.deepEqual(entry.changes.timezone, ['America/Chicago', 'America/Los_Angeles']);
+  assert.deepEqual(entry.changes.fiscal_year_start, [1, 7]);
+  const funds = ok(await c.get('/funds'));
+  fundC = funds[0].id;
+  offeringsFundC = funds[1].id;
+});
+
+test('v3 · fiscal years: periods, labels and the dashboard follow the church’s fiscal year', async () => {
+  const { fiscalYearOf, fiscalRange, fiscalLabel, fiscalMonths } = await import('../lib/period.js');
+  assert.equal(fiscalYearOf('2026-06-30', 7), 2025);
+  assert.equal(fiscalYearOf('2026-07-01', 7), 2026);
+  assert.deepEqual(fiscalRange(2025, 7), { start: '2025-07-01', end: '2026-06-30' });
+  assert.equal(fiscalLabel(2025, 7), '2025–26');
+  assert.equal(fiscalLabel(2025, 1), '2025');
+  assert.deepEqual(fiscalMonths(2025, 7)[0], { year: 2025, month: 7 });
+  assert.deepEqual(fiscalMonths(2025, 7)[11], { year: 2026, month: 6 });
+
+  ok(await c.post('/offerings', { fund_id: fundC, amount: 100, date: '2025-07-15' }), 201);
+  ok(await c.post('/offerings', { fund_id: fundC, amount: 50, date: '2026-06-20' }), 201);
+  ok(await c.post('/offerings', { fund_id: fundC, amount: 7, date: '2026-07-02' }), 201);
+  const d = ok(await c.get('/reports/dashboard?year=2025'));
+  assert.equal(d.label, '2025–26');
+  assert.equal(d.start, '2025-07-01');
+  assert.equal(d.kpis.total, 150);
+  assert.equal(d.monthly[0].month, 7);
+  assert.equal(d.monthly[0].total, 100);
+  assert.equal(d.monthly[11].total, 50);
+  assert.ok(d.years.some((y: any) => y.year === 2026 && y.label === '2026–27'));
+});
+
+test('v3 · a closed count is locked; reopening needs a reason and is recorded', async () => {
+  const batch = ok(await c.post('/batches', { date: '2026-03-01', name: 'Culto dominical' }), 201);
+  const off = ok(await c.post('/offerings', { fund_id: fundC, batch_id: batch.id, amount: 20, date: batch.date, method: 'cash' }), 201);
+  ok(await c.patch(`/batches/${batch.id}`, { date: batch.date, name: batch.name, status: 'closed' }));
+
+  const edit = await c.patch(`/offerings/${off.id}`, { fund_id: fundC, batch_id: batch.id, amount: 25, date: batch.date, method: 'cash' });
+  assert.equal(edit.status, 409);
+  assert.equal(edit.body.error, 'batch_closed');
+  assert.equal((await c.del(`/offerings/${off.id}`)).body.error, 'batch_closed');
+  assert.equal((await c.post('/offerings', { fund_id: fundC, batch_id: batch.id, amount: 5, date: batch.date })).body.error, 'batch_closed');
+  assert.equal((await c.patch(`/batches/${batch.id}`, { date: batch.date, name: 'Otro nombre', status: 'closed' })).body.error, 'batch_closed');
+  assert.equal((await c.del(`/batches/${batch.id}`)).body.error, 'batch_closed');
+
+  assert.equal((await c.patch(`/batches/${batch.id}`, { date: batch.date, name: batch.name, status: 'open' })).body.error, 'reopen_reason_required');
+  const reopened = ok(await c.patch(`/batches/${batch.id}`, { date: batch.date, name: batch.name, status: 'open', reopen_reason: 'Faltó un sobre de $5' }));
+  assert.equal(reopened.status, 'open');
+  const act = ok(await c.get('/org/activity'));
+  assert.ok(act.some((e: any) => e.action === 'reopen' && e.summary.includes('Faltó un sobre')));
+
+  const changed = ok(await c.patch(`/offerings/${off.id}`, { fund_id: fundC, batch_id: batch.id, amount: 25, date: batch.date, method: 'cash' }));
+  assert.equal(changed.amount, 25);
+  const log = ok(await c.get('/org/activity')).find((e: any) => e.entity === 'offering' && e.action === 'update');
+  assert.deepEqual(log.changes.amount, [20, 25]);
+  ok(await c.patch(`/batches/${batch.id}`, { date: batch.date, name: batch.name, status: 'closed' }));
+});
+
+test('v3 · envelope numbers are unique; duplicate people can be found and merged', async () => {
+  const one = ok(await c.post('/members', { first_name: 'José', last_name: 'García', envelope_number: '12', phone: '(210) 555-0100' }), 201);
+  const taken = await c.post('/members', { first_name: 'Otro', last_name: 'Señor', envelope_number: '12' });
+  assert.equal(taken.status, 409);
+  assert.equal(taken.body.error, 'envelope_taken');
+  assert.equal(taken.body.detail.name, 'José García');
+  const two = ok(await c.post('/members', { first_name: 'Jose', last_name: 'Garcia', email: 'jose@c.test', phone: '210.555.0100' }), 201);
+  const lone = ok(await c.post('/members', { first_name: 'María', last_name: 'López' }), 201);
+  ok(await c.post('/offerings', { member_id: two.id, fund_id: fundC, amount: 40, date: '2026-04-05' }), 201);
+
+  const dups = ok(await c.get('/members/duplicates'));
+  assert.equal(dups.length, 1);
+  assert.deepEqual(dups[0].reasons.sort(), ['name', 'phone']);
+  const merged = ok(await c.post(`/members/${one.id}/merge`, { other_id: two.id }));
+  assert.equal(merged.moved.offerings, 1);
+  const kept = ok(await c.get(`/members/${one.id}`));
+  assert.equal(kept.member.email, 'jose@c.test');
+  assert.equal(kept.member.envelope_number, '12');
+  assert.equal((await c.get(`/members/${two.id}`)).status, 404);
+  assert.equal(ok(await c.get('/members/duplicates')).length, 0);
+
+  // "They are different people" is remembered.
+  const three = ok(await c.post('/members', { first_name: 'Maria', last_name: 'Lopez' }), 201);
+  assert.equal(ok(await c.get('/members/duplicates')).length, 1);
+  ok(await c.post('/members/duplicates/dismiss', { a: lone.id, b: three.id }));
+  assert.equal(ok(await c.get('/members/duplicates')).length, 0);
+  // Another church cannot merge or dismiss our members.
+  assert.equal((await b.post(`/members/${one.id}/merge`, { other_id: three.id })).status, 404);
+});
+
+test('v3 · backups are kept on the server and can be restored', async () => {
+  const before = ok(await c.get('/offerings')).count;
+  const { name } = ok(await c.post('/data/backups'), 201);
+  assert.match(name, /manual\.json\.gz$/);
+  const list = ok(await c.get('/data/backups'));
+  assert.ok(list.some((x: any) => x.name === name));
+  assert.equal((await b.get(`/data/backups/${name}`)).status, 404);
+  const file = ok(await c.get(`/data/backups/${name}`));
+  assert.equal(file.app, 'Sanctuary');
+
+  // Changes made after the backup disappear when it is restored.
+  const extra = ok(await c.post('/members', { first_name: 'Temporal', last_name: 'Prueba' }), 201);
+  assert.equal((await c.form('/data/restore', { backup: name, confirm: 'si' })).body.error, 'restore_confirm');
+  const res = ok(await c.form('/data/restore', { backup: name, confirm: 'RESTAURAR' }));
+  assert.equal(res.counts.offerings, before);
+  assert.match(res.safety, /before-restore/);
+  assert.equal(ok(await c.get('/offerings')).count, before);
+  assert.ok(!ok(await c.get('/members')).some((m: any) => m.id === extra.id));
+  // Restoring from an uploaded copy works too, and garbage is refused.
+  const up = ok(await c.form('/data/restore', { confirm: 'RESTORE' }, { name: 'copia.json', type: 'application/json', data: JSON.stringify(file) }));
+  assert.equal(up.counts.offerings, before);
+  assert.equal((await c.form('/data/restore', { confirm: 'RESTORE' }, { name: 'x.json', type: 'application/json', data: '{"hola":1}' })).body.error, 'backup_invalid');
+  const funds = ok(await c.get('/funds'));
+  fundC = funds[0].id;
+  offeringsFundC = funds[1].id;
+});
+
+test('v3 · automatic backups: one per church per day', async () => {
+  const { autoBackups } = await import('../lib/backup.js');
+  await autoBackups();
+  await autoBackups();
+  const autos = ok(await c.get('/data/backups')).filter((x: any) => x.kind === 'auto');
+  assert.equal(autos.length, 1);
+});
+
+let depositBatch = '';
+test('v3 · bank deposits: slip, deposited, reconciled; deposited counts cannot reopen', async () => {
+  const batch = ok(await c.post('/batches', { date: '2026-05-03', name: 'Culto 3 de mayo', denominations: { '20': 2, '1': 5 } }), 201);
+  depositBatch = batch.id;
+  const m = ok(await c.get('/members')).find((x: any) => x.first_name === 'José');
+  ok(await c.post('/offerings', { fund_id: fundC, batch_id: batch.id, amount: 45, date: batch.date, method: 'cash' }), 201);
+  ok(await c.post('/offerings', { member_id: m.id, fund_id: fundC, batch_id: batch.id, amount: 100, date: batch.date, method: 'check', check_number: '555' }), 201);
+  ok(await c.post('/offerings', { fund_id: fundC, batch_id: batch.id, amount: 30, date: batch.date, method: 'card' }), 201);
+
+  assert.equal((await c.post('/deposits', { date: '2026-05-04', batch_ids: [batch.id] })).body.error, 'batch_not_closed');
+  ok(await c.patch(`/batches/${batch.id}`, { date: batch.date, name: batch.name, denominations: { '20': 2, '1': 5 }, status: 'closed' }));
+  const lists = ok(await c.get('/deposits'));
+  assert.ok(lists.pending.some((p: any) => p.id === batch.id));
+  assert.equal((await c.post('/deposits', { date: '2026-05-04', batch_ids: [] })).body.error, 'deposit_needs_batches');
+  const dep = ok(await c.post('/deposits', { date: '2026-05-04', account: 'Cuenta 1234', batch_ids: [batch.id] }), 201);
+  assert.equal(dep.cash, 45);
+  assert.equal(dep.checks, 100);
+  assert.equal(dep.total, 145);
+  assert.equal((await c.post('/deposits', { date: '2026-05-04', batch_ids: [batch.id] })).body.error, 'batch_already_deposited');
+  assert.equal((await b.get(`/deposits/${dep.id}`)).status, 404);
+
+  const detail = ok(await c.get(`/deposits/${dep.id}`));
+  assert.deepEqual(detail.denominations, [{ value: 20, count: 2 }, { value: 1, count: 5 }]);
+  assert.equal(detail.checks[0].check_number, '555');
+  const slip = await c.get(`/deposits/${dep.id}/slip.pdf`);
+  assert.equal(slip.body.subarray(0, 4).toString(), '%PDF');
+
+  ok(await c.patch(`/deposits/${dep.id}`, { status: 'deposited' }));
+  assert.equal((await c.patch(`/batches/${batch.id}`, { date: batch.date, name: batch.name, status: 'open', reopen_reason: 'error' })).body.error, 'batch_deposited');
+  assert.equal((await c.del(`/deposits/${dep.id}`)).body.error, 'deposit_locked');
+  assert.equal((await c.patch(`/deposits/${dep.id}`, { status: 'reconciled' })).body.error, 'bank_amount_required');
+  const diffErr = await c.patch(`/deposits/${dep.id}`, { status: 'reconciled', bank_amount: 140 });
+  assert.equal(diffErr.body.error, 'reconcile_note_required');
+  assert.equal(diffErr.body.detail.difference, -5);
+  const rec = ok(await c.patch(`/deposits/${dep.id}`, { status: 'reconciled', bank_amount: 140, reconcile_note: 'Billete falso de $5' }));
+  assert.equal(rec.status, 'reconciled');
+  assert.ok(rec.reconciled_at);
+});
+
+test('v3 · expenses, budget, balance and the treasurer’s report', async () => {
+  const org = ok(await c.get('/org'));
+  ok(await c.patch('/org', { ...org, fiscal_year_start: 1, opening_balance: 1000, opening_balance_date: '2026-01-01' }));
+  const cats = ok(await c.get('/expenses/categories'));
+  assert.equal(cats[0].name, 'Salarios y honorarios');
+  const utilities = cats[2];
+  const e1 = ok(await c.post('/expenses', { date: '2026-05-10', category_id: utilities.id, payee: 'Compañía de luz', amount: '120.40', method: 'check', reference: '1001' }), 201);
+  assert.equal(e1.category, utilities.name);
+  ok(await c.post('/expenses', { date: '2026-05-20', category_id: cats[0].id, payee: 'Pastor', amount: 500 }), 201);
+  assert.equal((await c.post('/expenses', { date: '2026-05-20', category_id: cats[0].id, payee: 'X', amount: 0 })).status, 400);
+  assert.equal((await b.post('/expenses', { date: '2026-05-20', category_id: cats[0].id, payee: 'X', amount: 5 })).body.error, 'invalid_category');
+
+  const png = await (await import('sharp')).default({ create: { width: 20, height: 20, channels: 3, background: '#fff' } }).png().toBuffer();
+  const rc = ok(await c.form(`/expenses/${e1.id}/receipt`, {}, { name: 'recibo.png', type: 'image/png', data: png }));
+  assert.match(rc.receipt_file, /\.webp$/);
+  assert.equal((await c.form(`/expenses/${e1.id}/receipt`, {}, { name: 'x.txt', type: 'text/plain', data: 'hola' })).body.error, 'file_not_receipt');
+
+  ok(await c.put('/expenses/budget', { year: 2026, amounts: [{ category_id: utilities.id, amount: 1200 }, { category_id: cats[0].id, amount: '' }] }));
+  const sum = ok(await c.get('/expenses/summary?year=2026'));
+  const u = sum.categories.find((x: any) => x.id === utilities.id);
+  assert.equal(u.budget, 1200);
+  assert.equal(u.spent, 120.4);
+  assert.equal(sum.months.find((m: any) => m.month === 5).expenses, 620.4);
+  assert.equal(sum.totals.spent, 620.4);
+
+  const tr = ok(await c.post('/reports/run', { type: 'treasurer', from: '2026-05-01', to: '2026-05-31' }));
+  const income2026BeforeMay = 25 + 40; // offerings dated Jan–Apr 2026 in church C
+  const opening = 1000 + income2026BeforeMay;
+  assert.equal(tr.highlights[0].value, opening);
+  assert.equal(tr.highlights[1].value, 175);
+  assert.equal(tr.highlights[2].value, 620.4);
+  assert.equal(tr.highlights[3].value, Math.round((opening + 175 - 620.4) * 100) / 100);
+  assert.ok(tr.sections.some((s: any) => s.title === 'Depósitos bancarios' && s.rows[0].status === 'Conciliado'));
+  assert.ok(tr.sections.some((s: any) => s.title?.startsWith('Presupuesto del año fiscal') && s.rows[0].used === 10));
+  const pdf = await c.post('/reports/pdf', { type: 'treasurer', from: '2026-05-01', to: '2026-05-31' });
+  assert.equal(pdf.body.subarray(0, 4).toString(), '%PDF');
+  const ex = ok(await c.post('/reports/run', { type: 'expenses', from: '2026-05-01', to: '2026-05-31', lang: 'en' }));
+  assert.equal(ex.title, 'Expense detail');
+  assert.equal(ex.highlights[0].value, 620.4);
+
+  assert.equal((await c.del(`/expenses/categories/${utilities.id}`)).body.error, 'category_in_use');
+  ok(await c.del(`/expenses/${e1.id}`));
+});
+
+test('v3 · the monthly board report is e-mailed once, on the chosen day', async () => {
+  const { env } = await import('../env.js');
+  const { sendBoardReports, previousMonth } = await import('../lib/boardReport.js');
+  assert.deepEqual(previousMonth('2026-01-05'), { from: '2025-12-01', to: '2025-12-31', key: '2025-12' });
+  assert.deepEqual(previousMonth('2026-03-05'), { from: '2026-02-01', to: '2026-02-28', key: '2026-02' });
+  env.smtp.host = 'test';
+  try {
+    const org = ok(await c.get('/org'));
+    ok(await c.patch('/org', { ...org, board_emails: 'junta@c.test, pastor@c.test; no-es-correo', board_report_enabled: true, board_report_day: 5 }));
+    const tz = org.timezone;
+    const at = (iso: string) => { const d = new Date(iso); return d; };
+    // On the 4th nothing is sent; on the 6th at noon (church time) last month's report goes out once.
+    await sendBoardReports(at('2026-06-04T20:00:00Z'));
+    const { pool: p } = await import('../db.js');
+    const count = async () => Number(((await p.query("SELECT count(*) AS n FROM sanctuary.email_log WHERE kind = 'board'")) as any).rows[0].n);
+    assert.equal(await count(), 0);
+    await sendBoardReports(at('2026-06-06T20:00:00Z'));
+    assert.equal(await count(), 2);
+    await sendBoardReports(at('2026-06-06T21:00:00Z'));
+    assert.equal(await count(), 2);
+    assert.equal(ok(await c.get('/org')).board_report_last, '2026-05');
+    const test = ok(await c.post('/org/board-report/test'));
+    assert.equal(test.sent, 2);
+    assert.ok(tz);
+  } finally {
+    env.smtp.host = '';
+  }
+});
+
+test('v3 · households get one joint statement; goods received and gifts of property follow the tax rules', async () => {
+  const ana = ok(await c.post('/members', { first_name: 'Ana', last_name: 'Ruiz', email: 'ana@ruiz.test', address: '5 Calle', city: 'Austin' }), 201);
+  const beto = ok(await c.post('/members', { first_name: 'Beto', last_name: 'Ruiz', email: 'beto@ruiz.test' }), 201);
+  const h = ok(await c.post('/households', { name: 'Familia Ruiz', joint_statement: true, member_ids: [ana.id, beto.id] }), 201);
+  assert.equal(h.members.length, 2);
+  assert.equal((await b.post('/households', { name: 'X', member_ids: [ana.id] })).body.error, 'invalid_member');
+  ok(await c.post('/offerings', { member_id: ana.id, fund_id: fundC, amount: 200, date: '2026-02-01' }), 201);
+  ok(await c.post('/offerings', { member_id: beto.id, fund_id: fundC, amount: 100, date: '2026-02-08', goods_value: 30, notes: 'Cena de gala' }), 201);
+  assert.equal((await c.post('/offerings', { member_id: beto.id, fund_id: fundC, amount: 10, date: '2026-02-08', goods_value: 20 })).status, 400);
+  ok(await c.post('/noncash', { member_id: beto.id, date: '2026-03-01', description: 'Refrigerador usado para la cocina' }), 201);
+
+  const tax = ok(await c.get('/reports/tax?year=2026'));
+  const row = tax.members.find((m: any) => m.id === `h:${h.id}`);
+  assert.ok(row, 'joint statement row');
+  assert.equal(row.name, 'Familia Ruiz');
+  assert.equal(row.deductible, 270);
+  assert.equal(row.goods, 30);
+  assert.equal(row.quid_pro_quo, true);
+  assert.equal(row.noncash, 1);
+  assert.deepEqual(row.emails, ['ana@ruiz.test', 'beto@ruiz.test']);
+  assert.ok(!tax.members.some((m: any) => m.id === ana.id || m.id === beto.id));
+  const pdf = await c.get(`/reports/tax/statements.pdf?year=2026&memberId=h:${h.id}`);
+  assert.equal(pdf.body.subarray(0, 4).toString(), '%PDF');
+
+  // Turning off the joint statement gives each person their own again.
+  ok(await c.patch(`/households/${h.id}`, { name: 'Familia Ruiz', joint_statement: false }));
+  const tax2 = ok(await c.get('/reports/tax?year=2026'));
+  assert.equal(tax2.members.find((m: any) => m.id === beto.id).deductible, 70);
+  assert.equal(tax2.members.find((m: any) => m.id === ana.id).deductible, 200);
+});
+
+test('v3 · pledges toward a goal show what each person has given', async () => {
+  const goal = ok(await c.post('/goals', { name: 'Techo nuevo', fund_id: fundC, target_amount: 5000, start_date: '2026-01-01', end_date: '2026-12-31' }), 201);
+  const jose = ok(await c.get('/members')).find((x: any) => x.first_name === 'José');
+  ok(await c.put(`/goals/${goal.id}/pledges`, { member_id: jose.id, amount: 1000 }));
+  ok(await c.put(`/goals/${goal.id}/pledges`, { member_id: jose.id, amount: 1200, notes: 'En 12 meses' }));
+  const pledges = ok(await c.get(`/goals/${goal.id}/pledges`));
+  assert.equal(pledges.length, 1);
+  assert.equal(pledges[0].amount, 1200);
+  assert.equal(pledges[0].given, 140);
+  const g = ok(await c.get('/goals')).find((x: any) => x.id === goal.id);
+  assert.equal(g.pledged, 1200);
+  assert.equal((await b.put(`/goals/${goal.id}/pledges`, { member_id: jose.id, amount: 5 })).status, 404);
+});
+
+test('v3 · online giving files: Zelle in a bank export, PayPal and Tithe.ly, without saving anything twice', async () => {
+  const { parseOnline, fromBankDescription, matchMember } = await import('../lib/online.js');
+  assert.deepEqual(fromBankDescription('Zelle payment from JOSE GARCIA on 05/02 Conf# abc12345'), { name: 'Jose Garcia', reference: 'abc12345' });
+  assert.equal(matchMember({ name: 'J Garcia', email: null }, [{ id: '1', name: 'José García', email: null, first_name: 'José', last_name: 'García' }])?.by, 'similar');
+
+  const bank = 'Date,Description,Amount\n05/02/2026,Zelle payment from JOSE GARCIA on 05/02 Conf# abc12345,50.00\n05/03/2026,Zelle payment from UNKNOWN PERSON Conf# zz998877,20.00\n05/04/2026,ELECTRIC CO PAYMENT,-80.00\n05/05/2026,DEPOSIT,300.00\n';
+  const parsed = parseOnline((await import('../lib/csv.js')).parseCsv(bank));
+  assert.equal(parsed.source, 'zelle');
+  assert.equal(parsed.rows.length, 2);
+  assert.equal(parsed.skipped.length, 2);
+
+  const pre = ok(await c.form('/data/import/online/preview', {}, { name: 'banco.csv', type: 'text/csv', data: bank }));
+  assert.equal(pre.method, 'transfer');
+  assert.equal(pre.rows[0].member_name, 'José García');
+  assert.equal(pre.rows[1].member_id, null);
+  const rows = pre.rows.map((r: any) => ({ ...r, fund_id: r.fund_id || fundC, method: pre.method }));
+  const first = ok(await c.post('/data/import/online/commit', { source: pre.source, rows }));
+  assert.deepEqual(first, { created: 2, duplicates: 0 });
+  const again = ok(await c.post('/data/import/online/commit', { source: pre.source, rows }));
+  assert.deepEqual(again, { created: 0, duplicates: 2 });
+  assert.ok(ok(await c.form('/data/import/online/preview', {}, { name: 'banco.csv', type: 'text/csv', data: bank })).rows.every((r: any) => r.duplicate));
+
+  const paypal = '"Date","Time","Name","Type","Status","Currency","Gross","Fee","Net","From Email Address","Transaction ID","Note"\n"05/06/2026","10:00:00","Ana Ruiz","Donation Payment","Completed","USD","25.00","-1.03","23.97","ana@ruiz.test","9XY12345AB","Diezmo"\n"05/07/2026","10:00:00","Ana Ruiz","Donation Payment","Refunded","USD","10.00","0","10","ana@ruiz.test","9XY99999AB",""\n';
+  const pp = ok(await c.form('/data/import/online/preview', {}, { name: 'paypal.csv', type: 'text/csv', data: paypal }));
+  assert.equal(pp.source, 'paypal');
+  assert.equal(pp.method, 'card');
+  assert.equal(pp.rows.length, 1);
+  assert.equal(pp.rows[0].matched_by, 'email');
+  assert.equal(pp.rows[0].fee, 1.03);
+  assert.equal(pp.rows[0].fund_id, fundC); // "Diezmo" in the note goes to the tithes fund
+
+  const tithely = 'Date,First Name,Last Name,Email,Amount,Giving Type,Transaction ID\n2026-05-08,Beto,Ruiz,,40,Ofrendas,ch_1\n';
+  const tl = ok(await c.form('/data/import/online/preview', {}, { name: 'tithely.csv', type: 'text/csv', data: tithely }));
+  assert.equal(tl.source, 'tithely');
+  assert.equal(tl.rows[0].member_name, 'Beto Ruiz');
+  assert.equal(tl.rows[0].fund_id, offeringsFundC);
+  assert.equal((await c.form('/data/import/online/preview', {}, { name: 'x.csv', type: 'text/csv', data: 'Hola,Adios\n1,2\n' })).body.error, 'csv_missing_columns');
+  assert.equal((await b.post('/data/import/online/commit', { source: 'bank', rows })).status, 400);
+});
+
+test('v3 · offline entries carry a reference, so sending them twice saves them once', async () => {
+  const ref = 'offline:2b0f6a1e-7d8c-4c38-9d61-0f3b2a4c5d6e';
+  const first = ok(await c.post('/offerings', { fund_id: fundC, amount: 9, date: '2026-05-10', external_ref: ref }), 201);
+  const second = ok(await c.post('/offerings', { fund_id: fundC, amount: 9, date: '2026-05-10', external_ref: ref }));
+  assert.equal(second.duplicate, true);
+  assert.equal(second.id, first.id);
+  // The same reference in another church is a different gift.
+  const fundB = ok(await b.get('/funds'))[0].id;
+  ok(await b.post('/offerings', { fund_id: fundB, amount: 9, date: '2026-05-10', external_ref: ref }), 201);
+});
+
+test('v3 · a personal giving link shows a member their own giving, until it is revoked', async () => {
+  const jose = ok(await c.get('/members')).find((x: any) => x.first_name === 'José');
+  const link = ok(await c.post(`/links/${jose.id}`, { days: 30 }), 201);
+  const token = link.url.split('/mi-ofrenda/')[1];
+  assert.match(token, /^[A-Za-z0-9_-]{30,}$/);
+  const anon = client();
+  const page = ok(await anon.get(`/public/giving/${token}?year=2026`));
+  assert.equal(page.church, 'Iglesia C');
+  assert.equal(page.first_name, 'José');
+  assert.equal(page.total, 190); // 40 merged + 100 check + 50 Zelle
+  assert.ok(page.gifts.every((g: any) => !('member_id' in g)));
+  const st = await anon.get(`/public/giving/${token}/statement.pdf?year=2026`);
+  assert.equal(st.body.subarray(0, 4).toString(), '%PDF');
+  assert.ok(ok(await c.get(`/links/${jose.id}`)).last_viewed_at);
+  assert.equal((await anon.get('/public/giving/not-a-real-token-at-all-123')).body.error, 'link_invalid');
+  assert.equal((await b.post(`/links/${jose.id}`, {})).status, 404);
+  assert.equal((await c.post(`/links/${jose.id}`, { send: 'email' })).body.error, 'email_not_configured');
+
+  // A new link replaces the old one; revoking stops it.
+  const second = ok(await c.post(`/links/${jose.id}`, {}), 201);
+  assert.equal((await anon.get(`/public/giving/${token}`)).status, 404);
+  const token2 = second.url.split('/mi-ofrenda/')[1];
+  ok(await anon.get(`/public/giving/${token2}`));
+  ok(await c.del(`/links/${jose.id}`));
+  assert.equal((await anon.get(`/public/giving/${token2}`)).status, 404);
+});
+
+test('v3 · one search box finds members, checks, counts and expenses', async () => {
+  const s = ok(await c.get('/search?q=garcia'));
+  assert.equal(s.members[0].name, 'José García');
+  assert.equal(ok(await c.get('/search?q=555')).offerings[0].check_number, '555');
+  assert.ok(ok(await c.get('/search?q=mayo')).batches.some((x: any) => x.name === 'Culto 3 de mayo'));
+  assert.equal(ok(await c.get('/search?q=Pastor')).expenses[0].payee, 'Pastor');
+  assert.equal(ok(await c.get('/search?q=12')).members[0].envelope_number, '12');
+  assert.equal(ok(await b.get('/search?q=garcia')).members.length, 0);
+  assert.equal(ok(await c.get('/search?q=a')).members.length, 0);
+  const setup = ok(await c.get('/setup'));
+  assert.equal(setup.total, setup.steps.length);
+  assert.ok(setup.steps.find((x: any) => x.key === 'members').done);
+  assert.ok(setup.steps.find((x: any) => x.key === 'backup').done);
+  assert.equal(setup.steps.find((x: any) => x.key === 'logo').done, false);
+});
+
+test('v3 · AI reads photos of the notebook, and each church can turn AI off', async () => {
+  const jpg = await (await import('sharp')).default({ create: { width: 40, height: 30, channels: 3, background: '#eee' } }).jpeg().toBuffer();
+  const n = geminiRequests.length;
+  const read = ok(await a.form('/ai/read-image', { kind: 'ledger' }, { name: 'cuaderno.jpg', type: 'image/jpeg', data: jpg }));
+  assert.equal(read.rows.length, 2);
+  assert.equal(read.rows[0].member_id, memberA);
+  const sent = geminiRequests[n].body.contents[0].parts;
+  assert.equal(sent[0].inlineData.mimeType, 'image/jpeg');
+  assert.ok(sent[0].inlineData.data.length > 100);
+  assert.equal((await a.form('/ai/read-image', {}, { name: 'x.txt', type: 'text/plain', data: 'hola' })).body.error, 'file_not_image');
+
+  const org = ok(await c.get('/org'));
+  ok(await c.patch('/org', { ...org, ai_enabled: false }));
+  assert.equal(ok(await c.get('/auth/me')).features.ai, false);
+  assert.equal(ok(await c.get('/ai/status')).enabled, false);
+  const off = await c.post('/ai/parse-offerings', { text: 'Ana 5' });
+  assert.equal(off.status, 403);
+  assert.equal(off.body.error, 'ai_disabled');
+  ok(await c.patch('/org', { ...org, ai_enabled: true }));
+  assert.equal(ok(await c.get('/auth/me')).features.ai, true);
 });

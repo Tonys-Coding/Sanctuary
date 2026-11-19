@@ -17,6 +17,12 @@ import reports from './routes/reports';
 import ai from './routes/ai';
 import data from './routes/data';
 import messages from './routes/messages';
+import deposits from './routes/deposits';
+import expenses from './routes/expenses';
+import households from './routes/households';
+import noncash from './routes/noncash';
+import { links, publicGiving } from './routes/links';
+import search from './routes/search';
 
 export function createApp() {
   const app = express();
@@ -47,6 +53,7 @@ export function createApp() {
 
   app.get('/api/health', (_req, res) => void res.json({ status: 'ok' }));
   app.use('/api/auth', auth);
+  app.use('/api/public/giving', publicGiving);
 
   const api = express.Router();
   api.use(requireAuth);
@@ -66,6 +73,12 @@ export function createApp() {
   api.use('/ai', ai);
   api.use('/data', data);
   api.use('/messages', messages);
+  api.use('/deposits', deposits);
+  api.use('/expenses', expenses);
+  api.use('/households', households);
+  api.use('/noncash', noncash);
+  api.use('/links', links);
+  api.use('/', search);
   app.use('/api', api);
   app.use('/api', (_req, _res) => { throw new HttpError(404, 'not_found'); });
 

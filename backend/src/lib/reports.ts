@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { one, q } from '../db';
+import { fiscalLabel, fiscalRange, fiscalYearOf } from './period';
 import { HttpError } from '../http';
 import { date, method, optUuid } from './z';
 import { fullName } from '../routes/members';
@@ -20,7 +21,7 @@ export interface Report {
 }
 
 export const reportSpec = z.object({
-  type: z.enum(['summary', 'by_member', 'by_fund', 'by_month', 'by_method', 'transactions', 'member', 'batches']),
+  type: z.enum(['summary', 'by_member', 'by_fund', 'by_month', 'by_method', 'transactions', 'member', 'batches', 'treasurer', 'expenses']),
   from: date,
   to: date,
   fundId: optUuid,
@@ -31,7 +32,10 @@ export type ReportSpec = z.infer<typeof reportSpec>;
 
 const T = {
   es: {
-    titles: { summary: 'Resumen general', by_member: 'Ofrendas por miembro', by_fund: 'Ofrendas por fondo', by_month: 'Ofrendas por mes', by_method: 'Ofrendas por método de pago', transactions: 'Detalle de ofrendas', member: 'Estado de ofrendas', batches: 'Conteos de cultos' },
+    titles: { summary: 'Resumen general', by_member: 'Ofrendas por miembro', by_fund: 'Ofrendas por fondo', by_month: 'Ofrendas por mes', by_method: 'Ofrendas por método de pago', transactions: 'Detalle de ofrendas', member: 'Estado de ofrendas', batches: 'Conteos de cultos', treasurer: 'Informe de tesorería', expenses: 'Detalle de gastos' },
+    opening: 'Saldo inicial', income: 'Ingresos', spent: 'Gastos', closing: 'Saldo final', category: 'Categoría', payee: 'Pagado a', reference: 'Referencia',
+    incomeByFund: 'Ingresos por fondo', expensesByCategory: 'Gastos por categoría', budgetTitle: 'Presupuesto del año fiscal', budget: 'Presupuesto', usedYtd: 'Gastado en el año', used: '% usado', remaining: 'Disponible',
+    depositsTitle: 'Depósitos bancarios', depositStatus: { pending: 'Por depositar', deposited: 'Depositado', reconciled: 'Conciliado' }, pendingCounts: 'Conteos cerrados aún sin depositar', amount2: 'Monto',
     total: 'Total', count: 'Registros', average: 'Promedio', givers: 'Dadores', member: 'Miembro', fund: 'Fondo', month: 'Mes', method: 'Método', date: 'Fecha',
     amount: 'Monto', share: '% del total', last: 'Última ofrenda', envelope: 'Sobre', loose: 'Ofrenda suelta (sin nombre)', notes: 'Notas', check: 'Cheque',
     service: 'Culto', attendance: 'Asistencia', countedBy: 'Contado por', status: 'Estado', open: 'Abierto', closed: 'Cerrado',
@@ -41,7 +45,10 @@ const T = {
     months: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
   },
   en: {
-    titles: { summary: 'Giving summary', by_member: 'Giving by member', by_fund: 'Giving by fund', by_month: 'Giving by month', by_method: 'Giving by payment method', transactions: 'Offering detail', member: 'Giving statement', batches: 'Service counts' },
+    titles: { summary: 'Giving summary', by_member: 'Giving by member', by_fund: 'Giving by fund', by_month: 'Giving by month', by_method: 'Giving by payment method', transactions: 'Offering detail', member: 'Giving statement', batches: 'Service counts', treasurer: 'Treasurer’s report', expenses: 'Expense detail' },
+    opening: 'Opening balance', income: 'Income', spent: 'Expenses', closing: 'Closing balance', category: 'Category', payee: 'Paid to', reference: 'Reference',
+    incomeByFund: 'Income by fund', expensesByCategory: 'Expenses by category', budgetTitle: 'Fiscal-year budget', budget: 'Budget', usedYtd: 'Spent this year', used: '% used', remaining: 'Remaining',
+    depositsTitle: 'Bank deposits', depositStatus: { pending: 'To deposit', deposited: 'Deposited', reconciled: 'Reconciled' }, pendingCounts: 'Closed counts not yet deposited', amount2: 'Amount',
     total: 'Total', count: 'Records', average: 'Average', givers: 'Givers', member: 'Member', fund: 'Fund', month: 'Month', method: 'Method', date: 'Date',
     amount: 'Amount', share: '% of total', last: 'Last gift', envelope: 'Envelope', loose: 'Loose offering (no name)', notes: 'Notes', check: 'Check',
     service: 'Service', attendance: 'Attendance', countedBy: 'Counted by', status: 'Status', open: 'Open', closed: 'Closed',
@@ -126,6 +133,8 @@ export async function buildReport(orgId: string, lang: Lang, spec: ReportSpec): 
   const txCols = [c('date', t.date, 'date'), c('member', t.member), c('fund', t.fund), c('method', t.method), c('notes', t.notes), c('total', t.amount, 'money')];
 
   const sections: Section[] = [];
+  let treasurerTotals: Awaited<ReturnType<typeof treasurer>> | null = null;
+  let expenseTotal = 0;
   switch (spec.type) {
     case 'summary': {
       const [a, b, d, e] = await Promise.all([byFund(), byMonth(), byMethod(), byMember(10)]);
@@ -158,9 +167,54 @@ export async function buildReport(orgId: string, lang: Lang, spec: ReportSpec): 
       });
       break;
     }
+    case 'expenses': {
+      const rows = (await q(
+        `SELECT e.date, e.payee, c.name AS category, e.method AS m, e.reference, e.notes, e.amount AS total
+         FROM expenses e JOIN expense_categories c ON c.id = e.category_id
+         WHERE e.org_id = $1 AND e.date >= $2 AND e.date <= $3 ORDER BY e.date, e.created_at`, [orgId, spec.from, spec.to],
+      )).map((r) => ({ ...r, method: t.methods[r.m as keyof typeof t.methods] }));
+      sections.push({
+        columns: [c('date', t.date, 'date'), c('payee', t.payee), c('category', t.category), c('method', t.method), c('reference', t.reference), c('total', t.amount, 'money')],
+        rows, total: { date: t.total, total: sum(rows, 'total') },
+      });
+      expenseTotal = sum(rows, 'total');
+      break;
+    }
+    case 'treasurer': {
+      const tr = await treasurer(orgId, spec.from, spec.to);
+      treasurerTotals = tr;
+      sections.push({ title: t.incomeByFund, columns: [c('fund', t.fund), c('count', t.count, 'number'), c('total', t.total, 'money')], rows: tr.byFund, total: { fund: t.total, count: sum(tr.byFund, 'count'), total: tr.income } });
+      sections.push({ title: t.expensesByCategory, columns: [c('category', t.category), c('count', t.count, 'number'), c('total', t.total, 'money')], rows: tr.byCategory, total: { category: t.total, count: sum(tr.byCategory, 'count'), total: tr.expenses } });
+      if (tr.budget.length) {
+        sections.push({ title: `${t.budgetTitle} ${tr.fiscalLabel}`, columns: [c('category', t.category), c('budget', t.budget, 'money'), c('spent', t.usedYtd, 'money'), c('used', t.used, 'percent'), c('remaining', t.remaining, 'money')], rows: tr.budget });
+      }
+      sections.push({
+        title: t.depositsTitle,
+        columns: [c('date', t.date, 'date'), c('reference', t.reference), c('status', t.status), c('total', t.amount2, 'money')],
+        rows: tr.deposits.map((d) => ({ ...d, status: t.depositStatus[d.status as keyof typeof t.depositStatus] })),
+        total: { date: t.total, total: sum(tr.deposits, 'total') },
+      });
+      if (tr.pendingCounts.length) {
+        sections.push({ title: t.pendingCounts, columns: [c('date', t.date, 'date'), c('service', t.service), c('total', t.total, 'money')], rows: tr.pendingCounts, total: { date: t.total, total: sum(tr.pendingCounts, 'total') } });
+      }
+      break;
+    }
   }
 
   const title = spec.type === 'member' ? `${t.titles.member} · ${memberName}` : t.titles[spec.type];
+  if (spec.type === 'treasurer' && treasurerTotals) {
+    const tr = treasurerTotals;
+    return {
+      type: spec.type, title, from: spec.from, to: spec.to, subtitle: t.period(fmtDate(spec.from, lang), fmtDate(spec.to, lang)), sections,
+      highlights: [
+        { label: t.opening, value: tr.opening, kind: 'money' }, { label: t.income, value: tr.income, kind: 'money' },
+        { label: t.spent, value: tr.expenses, kind: 'money' }, { label: t.closing, value: tr.closing, kind: 'money' },
+      ],
+    };
+  }
+  if (spec.type === 'expenses') {
+    return { type: spec.type, title, from: spec.from, to: spec.to, subtitle: t.period(fmtDate(spec.from, lang), fmtDate(spec.to, lang)), sections, highlights: [{ label: t.spent, value: expenseTotal, kind: 'money' }] };
+  }
   return {
     type: spec.type, title, from: spec.from, to: spec.to,
     subtitle: [t.period(fmtDate(spec.from, lang), fmtDate(spec.to, lang)), ...(spec.type === 'batches' ? [] : filters)].join(' · '),
@@ -171,6 +225,49 @@ export async function buildReport(orgId: string, lang: Lang, spec: ReportSpec): 
       ...(spec.type === 'member' ? [] : [{ label: t.givers, value: agg.givers, kind: 'number' as ColKind }]),
     ],
     sections,
+  };
+}
+
+/** Balance on a given day: opening balance + income − expenses from the opening date up to that day. */
+export async function balanceAt(orgId: string, day: string) {
+  const r = await one(
+    `SELECT o.opening_balance AS ob,
+       (SELECT COALESCE(sum(amount), 0) FROM offerings WHERE org_id = $1 AND date >= COALESCE(o.opening_balance_date, '1900-01-01') AND date <= $2::date) AS inc,
+       (SELECT COALESCE(sum(amount), 0) FROM expenses WHERE org_id = $1 AND date >= COALESCE(o.opening_balance_date, '1900-01-01') AND date <= $2::date) AS exp
+     FROM organizations o WHERE o.id = $1`, [orgId, day]);
+  return Math.round(((r.ob || 0) + r.inc - r.exp) * 100) / 100;
+}
+
+/** Numbers behind the monthly treasurer's report for a period. */
+export async function treasurer(orgId: string, from: string, to: string) {
+  const dayBefore = new Date(Date.parse(from + 'T00:00:00Z') - 864e5).toISOString().slice(0, 10);
+  const org = await one('SELECT fiscal_year_start FROM organizations WHERE id = $1', [orgId]);
+  const fys = org.fiscal_year_start || 1;
+  const fy = fiscalYearOf(to, fys);
+  const range = fiscalRange(fy, fys);
+  const [opening, closing, byFund, byCategory, budget, deposits, pendingCounts] = await Promise.all([
+    balanceAt(orgId, dayBefore),
+    balanceAt(orgId, to),
+    q(`SELECT f.name AS fund, count(*)::int AS count, sum(o.amount) AS total FROM offerings o JOIN funds f ON f.id = o.fund_id
+       WHERE o.org_id = $1 AND o.date >= $2 AND o.date <= $3 GROUP BY f.id ORDER BY total DESC`, [orgId, from, to]),
+    q(`SELECT c.name AS category, count(*)::int AS count, sum(e.amount) AS total FROM expenses e JOIN expense_categories c ON c.id = e.category_id
+       WHERE e.org_id = $1 AND e.date >= $2 AND e.date <= $3 GROUP BY c.id ORDER BY total DESC`, [orgId, from, to]),
+    q(`SELECT c.name AS category, b.amount AS budget,
+              COALESCE((SELECT sum(amount) FROM expenses e WHERE e.category_id = c.id AND e.date >= $3 AND e.date <= $4), 0) AS spent
+       FROM budgets b JOIN expense_categories c ON c.id = b.category_id
+       WHERE b.org_id = $1 AND b.year = $2 ORDER BY c.sort_order, c.name`, [orgId, fy, range.start, to]),
+    q(`SELECT d.date, d.reference, d.status, COALESCE(sum(o.amount) FILTER (WHERE o.method IN ('cash', 'check')), 0) AS total
+       FROM deposits d LEFT JOIN batches b ON b.deposit_id = d.id LEFT JOIN offerings o ON o.batch_id = b.id
+       WHERE d.org_id = $1 AND d.date >= $2 AND d.date <= $3 GROUP BY d.id ORDER BY d.date`, [orgId, from, to]),
+    q(`SELECT b.date, b.name AS service, COALESCE(sum(o.amount) FILTER (WHERE o.method IN ('cash', 'check')), 0) AS total
+       FROM batches b LEFT JOIN offerings o ON o.batch_id = b.id
+       WHERE b.org_id = $1 AND b.status = 'closed' AND b.deposit_id IS NULL AND b.date <= $2 GROUP BY b.id ORDER BY b.date`, [orgId, to]),
+  ]);
+  const income = Math.round(byFund.reduce((a, r) => a + r.total, 0) * 100) / 100;
+  const expenses = Math.round(byCategory.reduce((a, r) => a + r.total, 0) * 100) / 100;
+  return {
+    opening, closing, income, expenses, byFund, byCategory, deposits, pendingCounts, fiscalLabel: fiscalLabel(fy, fys),
+    budget: budget.map((b) => ({ ...b, used: b.budget > 0 ? Math.round((b.spent / b.budget) * 1000) / 10 : 0, remaining: Math.round((b.budget - b.spent) * 100) / 100 })),
   };
 }
 

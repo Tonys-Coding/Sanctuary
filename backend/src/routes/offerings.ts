@@ -1,7 +1,7 @@
 import { Request, Router } from 'express';
 import { z } from 'zod';
 import { one, q } from '../db';
-import { HttpError, audit, isoDate, notFound, parse } from '../http';
+import { HttpError, audit, diff, isoDate, notFound, parse, snapshot } from '../http';
 import { date, method, money, optUuid, text, uuid } from '../lib/z';
 import { fullName } from './members';
 import { toCsv } from '../lib/csv';
@@ -17,7 +17,9 @@ const schema = z.object({
   method: method.default('cash'),
   check_number: text(40),
   notes: text(500),
-});
+  goods_value: z.coerce.number().min(0).max(99_999_999).default(0),
+  external_ref: text(120),
+}).refine((o) => o.goods_value <= o.amount, { message: 'goods value above amount', path: ['goods_value'] });
 
 /** Every id a client sends must belong to the caller's church. */
 async function assertOwned(orgId: string, b: { member_id?: string | null; fund_id: string; batch_id?: string | null }) {
@@ -30,7 +32,18 @@ async function assertOwned(orgId: string, b: { member_id?: string | null; fund_i
   if (!row.fund || !row.member || !row.batch) throw new HttpError(400, 'invalid_input');
 }
 
+/** A closed count is signed and final: its offerings cannot be added to, changed or removed until it is reopened. */
+async function assertBatchOpen(orgId: string, batchId: string | null | undefined) {
+  if (!batchId) return;
+  const b = await one('SELECT status, name, date FROM batches WHERE id = $1 AND org_id = $2', [batchId, orgId]);
+  if (b?.status === 'closed') throw new HttpError(409, 'batch_closed', { name: b.name, date: b.date });
+}
+
+const AUDIT_FIELDS = ['amount', 'date', 'member_name', 'fund_name', 'method', 'check_number', 'notes', 'goods_value', 'batch_name'];
+const describe = (row: any) => `${row.member_name || '—'} · ${row.fund_name} · ${Number(row.amount).toFixed(2)}`;
+
 const SELECT = `SELECT o.id, o.amount, o.date, o.method, o.check_number, o.notes, o.member_id, o.fund_id, o.batch_id, o.created_at,
+       o.goods_value, o.external_ref, b.status AS batch_status,
        CASE WHEN m.id IS NULL THEN NULL ELSE ${fullName} END AS member_name, m.avatar_file AS member_avatar,
        f.name AS fund_name, f.color_slot AS fund_color, b.name AS batch_name
   FROM offerings o
@@ -86,35 +99,45 @@ r.get('/export.csv', async (req, res) => {
 r.post('/', async (req, res) => {
   const b = parse(schema, req.body);
   await assertOwned(req.user.orgId, b);
+  await assertBatchOpen(req.user.orgId, b.batch_id);
+  // Sending the same reference twice (an import run again, an offline entry retried) returns the first one.
+  if (b.external_ref) {
+    const existing = await one(`${SELECT} WHERE o.org_id = $1 AND o.external_ref = $2`, [req.user.orgId, b.external_ref]);
+    if (existing) return void res.status(200).json({ ...existing, duplicate: true });
+  }
   const o = await one(
-    `INSERT INTO offerings (org_id, member_id, fund_id, batch_id, amount, date, method, check_number, notes, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-    [req.user.orgId, b.member_id ?? null, b.fund_id, b.batch_id ?? null, b.amount, b.date, b.method, b.check_number ?? null, b.notes ?? null, req.user.id],
+    `INSERT INTO offerings (org_id, member_id, fund_id, batch_id, amount, date, method, check_number, notes, goods_value, external_ref, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+    [req.user.orgId, b.member_id ?? null, b.fund_id, b.batch_id ?? null, b.amount, b.date, b.method, b.check_number ?? null, b.notes ?? null, b.goods_value, b.external_ref ?? null, req.user.id],
   );
   const row = await one(`${SELECT} WHERE o.id = $1`, [o.id]);
-  await audit(req, 'create', 'offering', o.id, `${row.member_name || '—'} · ${row.fund_name} · ${b.amount.toFixed(2)}`);
+  await audit(req, 'create', 'offering', o.id, describe(row));
   res.status(201).json(row);
 });
 
 r.patch('/:id', async (req, res) => {
   const b = parse(schema, req.body);
   await assertOwned(req.user.orgId, b);
-  const o = await one(
-    `UPDATE offerings SET member_id=$3, fund_id=$4, batch_id=$5, amount=$6, date=$7, method=$8, check_number=$9, notes=$10, updated_at=now()
-     WHERE id = $1 AND org_id = $2 RETURNING id`,
-    [req.params.id, req.user.orgId, b.member_id ?? null, b.fund_id, b.batch_id ?? null, b.amount, b.date, b.method, b.check_number ?? null, b.notes ?? null],
+  const before = await one(`${SELECT} WHERE o.id = $1 AND o.org_id = $2`, [req.params.id, req.user.orgId]);
+  if (!before) throw notFound();
+  await assertBatchOpen(req.user.orgId, before.batch_id);
+  if (b.batch_id !== before.batch_id) await assertBatchOpen(req.user.orgId, b.batch_id);
+  await q(
+    `UPDATE offerings SET member_id=$3, fund_id=$4, batch_id=$5, amount=$6, date=$7, method=$8, check_number=$9, notes=$10, goods_value=$11, updated_at=now()
+     WHERE id = $1 AND org_id = $2`,
+    [req.params.id, req.user.orgId, b.member_id ?? null, b.fund_id, b.batch_id ?? null, b.amount, b.date, b.method, b.check_number ?? null, b.notes ?? null, b.goods_value],
   );
-  if (!o) throw notFound();
-  const row = await one(`${SELECT} WHERE o.id = $1`, [o.id]);
-  await audit(req, 'update', 'offering', o.id, `${row.member_name || '—'} · ${row.fund_name} · ${b.amount.toFixed(2)}`);
+  const row = await one(`${SELECT} WHERE o.id = $1`, [req.params.id]);
+  await audit(req, 'update', 'offering', row.id, describe(row), diff(before, row, AUDIT_FIELDS));
   res.json(row);
 });
 
 r.delete('/:id', async (req, res) => {
   const row = await one(`${SELECT} WHERE o.id = $1 AND o.org_id = $2`, [req.params.id, req.user.orgId]);
   if (!row) throw notFound();
+  await assertBatchOpen(req.user.orgId, row.batch_id);
   await q('DELETE FROM offerings WHERE id = $1', [row.id]);
-  await audit(req, 'delete', 'offering', row.id, `${row.member_name || '—'} · ${row.fund_name} · ${row.amount.toFixed(2)} · ${row.date}`);
+  await audit(req, 'delete', 'offering', row.id, `${describe(row)} · ${row.date}`, snapshot(row, AUDIT_FIELDS));
   res.json({ ok: true });
 });
 

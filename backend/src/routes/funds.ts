@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { one, q } from '../db';
-import { HttpError, audit, notFound, parse } from '../http';
+import { HttpError, audit, diff, notFound, parse } from '../http';
 
 const r = Router();
 const schema = z.object({
@@ -15,7 +15,7 @@ r.get('/', async (req, res) => {
     await q(
       `SELECT f.*, COALESCE(s.total, 0) AS total_year, COALESCE(s.count, 0) AS offering_count
        FROM funds f LEFT JOIN (
-         SELECT fund_id, sum(amount) FILTER (WHERE date >= date_trunc('year', current_date)) AS total, count(*) AS count
+         SELECT fund_id, sum(amount) FILTER (WHERE date >= fy_start($1)) AS total, count(*) AS count
          FROM offerings WHERE org_id = $1 GROUP BY fund_id) s ON s.fund_id = f.id
        WHERE f.org_id = $1 AND ($2 OR f.archived_at IS NULL) ORDER BY f.archived_at NULLS FIRST, f.sort_order, f.created_at`,
       [req.user.orgId, req.query.all === '1'],
@@ -36,6 +36,7 @@ r.post('/', async (req, res) => {
 
 r.patch('/:id', async (req, res) => {
   const b = parse(schema.extend({ archived: z.boolean().optional() }), req.body);
+  const before = await one('SELECT * FROM funds WHERE id = $1 AND org_id = $2', [req.params.id, req.user.orgId]);
   const f = await one(
     `UPDATE funds SET name = $3, color_slot = $4, tax_deductible = $5,
        archived_at = CASE WHEN $6::boolean IS NULL THEN archived_at WHEN $6 THEN COALESCE(archived_at, now()) ELSE NULL END
@@ -43,7 +44,7 @@ r.patch('/:id', async (req, res) => {
     [req.params.id, req.user.orgId, b.name, b.color_slot, b.tax_deductible, b.archived ?? null],
   );
   if (!f) throw notFound();
-  await audit(req, 'update', 'fund', f.id, f.name);
+  await audit(req, 'update', 'fund', f.id, f.name, diff(before, f, ['name', 'tax_deductible', 'color_slot', 'archived_at']));
   res.json(f);
 });
 

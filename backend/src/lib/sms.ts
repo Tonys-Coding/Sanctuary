@@ -1,6 +1,6 @@
 import { env, features } from '../env';
 import { q } from '../db';
-import { HttpError } from '../http';
+import { HttpError, hourIn, todayIn } from '../http';
 import { fullName } from '../routes/members';
 
 /** Turns what people type ("(210) 555-0142", "210.555.0142", "+52 55 1234 5678") into +E.164. */
@@ -75,27 +75,29 @@ export const DEFAULT_BIRTHDAY_MESSAGE = {
   en: 'Happy birthday, {name}! Everyone at {church} thanks God for your life. May He bless you today and always!',
 };
 
-const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
 /**
- * Once a day (from 9:00 server time), queues a birthday greeting for every member who
- * agreed to texts and has a birthday today, in churches that turned the option on.
+ * Once a day (from 9:00 in each church's own time zone), queues a birthday greeting for every
+ * member who agreed to texts and has a birthday that day, in churches that turned the option on.
  */
 export async function queueBirthdays(now = new Date()): Promise<number> {
-  if (!features().sms || now.getHours() < 9) return 0;
-  const today = isoLocal(now);
-  const md = today.slice(5);
-  // Feb 29 birthdays are greeted on Feb 28 in years without Feb 29.
-  const leap = new Date(now.getFullYear(), 1, 29).getMonth() === 1;
-  const days = md === '02-28' && !leap ? ['02-28', '02-29'] : [md];
-  const orgs = await q(
-    `UPDATE organizations SET sms_birthday_last_run = $1::date
-     WHERE sms_birthday_enabled AND (sms_birthday_last_run IS NULL OR sms_birthday_last_run < $1::date)
-     RETURNING id, name, sms_birthday_message`,
-    [today],
-  );
+  if (!features().sms) return 0;
+  const orgs = await q('SELECT id, name, timezone, sms_birthday_message, sms_birthday_last_run FROM organizations WHERE sms_birthday_enabled');
   let queued = 0;
   for (const org of orgs) {
+    const tz = org.timezone || 'UTC';
+    const today = todayIn(tz, now);
+    if (hourIn(tz, now) < 9 || (org.sms_birthday_last_run && org.sms_birthday_last_run >= today)) continue;
+    // Claim the day first so two servers (or two ticks) never send twice.
+    const claimed = await q(
+      'UPDATE organizations SET sms_birthday_last_run = $2::date WHERE id = $1 AND (sms_birthday_last_run IS NULL OR sms_birthday_last_run < $2::date) RETURNING id',
+      [org.id, today],
+    );
+    if (!claimed.length) continue;
+    const md = today.slice(5);
+    const y = Number(today.slice(0, 4));
+    const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    // Feb 29 birthdays are greeted on Feb 28 in years without Feb 29.
+    const days = md === '02-28' && !leap ? ['02-28', '02-29'] : [md];
     const people = await q(
       `SELECT m.id, m.first_name, m.phone, u.language FROM members m
        LEFT JOIN LATERAL (SELECT language FROM users WHERE org_id = m.org_id ORDER BY created_at LIMIT 1) u ON true

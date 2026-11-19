@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { one, q, tx } from '../db';
 import { env, features } from '../env';
-import { HttpError, endSession, parse, requireAuth, startSession } from '../http';
+import { HttpError, endSession, isTimeZone, parse, requireAuth, startSession } from '../http';
 import { letterHtml, sendMail } from '../lib/mailer';
 import { removeFile, saveImage, upload } from '../lib/files';
 
@@ -44,7 +44,8 @@ async function sessionPayload(userId: string) {
     [userId],
   );
   const org = await one('SELECT * FROM organizations WHERE id = $1', [user.org_id]);
-  return { user, org, features: features() };
+  const f = features();
+  return { user, org, features: { ...f, aiConfigured: f.ai, ai: f.ai && org.ai_enabled } };
 }
 
 r.get('/invite/:code', limiter, async (req, res) => {
@@ -63,6 +64,7 @@ r.post('/register', limiter, async (req, res) => {
       language: lang.default('es'),
       churchName: z.string().trim().max(160).optional(),
       inviteCode: z.string().max(40).optional(),
+      timezone: z.string().max(60).optional(),
     }),
     req.body,
   );
@@ -78,7 +80,9 @@ r.post('/register', limiter, async (req, res) => {
       await q('UPDATE invitations SET uses = uses + 1 WHERE id = $1', [inv.id], c);
     } else {
       if (!body.churchName || body.churchName.length < 2) throw new HttpError(400, 'church_name_required');
-      orgId = (await one('INSERT INTO organizations (name) VALUES ($1) RETURNING id', [body.churchName], c)).id;
+      // A new church takes the time zone of the browser that registers it.
+      const tz = body.timezone && isTimeZone(body.timezone) ? body.timezone : 'UTC';
+      orgId = (await one('INSERT INTO organizations (name, timezone) VALUES ($1, $2) RETURNING id', [body.churchName, tz], c)).id;
       const names = DEFAULT_FUNDS[body.language];
       for (let i = 0; i < names.length; i++) {
         await q('INSERT INTO funds (org_id, name, color_slot, sort_order) VALUES ($1,$2,$3,$4)', [orgId, names[i], i + 1, i], c);
