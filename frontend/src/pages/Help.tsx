@@ -149,9 +149,9 @@ export default function Help() {
     {
       id: 'respaldo', icon: <DatabaseBackup size={24} />, title: tr('Copias de seguridad y cómo regresar a una', 'Backups and how to go back to one'),
       when: tr('Sanctuary guarda una copia cada día; tú puedes guardar otras cuando quieras.', 'Sanctuary keeps a copy every day; you can keep more whenever you like.'),
-      to: '/configuracion?tab=datos', cta: tr('Ir a Importar y respaldar', 'Go to Import & backup'),
+      to: '/configuracion?tab=respaldo', cta: tr('Ir a Copias de seguridad', 'Go to Backups'),
       steps: [
-        <>{tr('Ve a', 'Go to')} {b(tr('Configuración → Importar y respaldar', 'Settings → Import & backup'))}. {tr('En', 'Under')} {b(tr('Copias de seguridad en el servidor', 'Backups on the server'))} {tr('verás las copias automáticas de cada día.', 'you will see the automatic daily copies.')}</>,
+        <>{tr('Ve a', 'Go to')} {b(tr('Configuración → Copias de seguridad', 'Settings → Backups'))}. {tr('Ahí', 'There')} {tr('verás las copias automáticas de cada día.', 'you will see the automatic daily copies.')}</>,
         <>{tr('Pulsa', 'Press')} {b(tr('Crear copia ahora', 'Back up now'))} {tr('antes de un cambio grande, o', 'before a big change, or')} {b(tr('Descargar', 'Download'))} {tr('para guardarla en una memoria USB o en la nube.', 'to keep it on a USB drive or in the cloud.')}</>,
         <>{tr('Si algo salió mal, pulsa', 'If something went wrong, press')} {b(tr('Volver a esta copia', 'Restore this copy'))} {tr('y escribe RESTAURAR. Antes de hacerlo, Sanctuary guarda una copia de lo que hay ahora.', 'and type RESTORE. Before doing it, Sanctuary saves a copy of what is there now.')}</>,
       ],
@@ -191,10 +191,10 @@ export default function Help() {
     {
       id: 'enlinea', icon: <Upload size={24} />, title: tr('Agregar las ofrendas de Zelle y en línea', 'Add Zelle and online gifts'),
       when: tr('Una vez al mes, con el archivo del banco o del servicio de ofrendas.', 'Once a month, with the file from the bank or giving service.'),
-      to: '/configuracion?tab=datos', cta: tr('Ir a Importar y respaldar', 'Go to Import & backup'),
+      to: '/configuracion?tab=datos', cta: tr('Ir a Importar datos', 'Go to Import data'),
       steps: [
         <>{tr('En el sitio del banco (o de Tithe.ly, Square, PayPal) busca', 'On the bank’s site (or Tithe.ly, Square, PayPal) look for')} {b(tr('Exportar / Descargar actividad', 'Export / Download activity'))} {tr('y guarda el archivo CSV.', 'and save the CSV file.')}</>,
-        <>{tr('En', 'In')} {b(tr('Configuración → Importar y respaldar', 'Settings → Import & backup'))} {tr('pulsa', 'press')} {b(tr('Importar archivo de donaciones', 'Import a giving file'))}.</>,
+        <>{tr('En', 'In')} {b(tr('Configuración → Importar datos', 'Settings → Import data'))} {tr('pulsa', 'press')} {b(tr('Importar archivo de donaciones', 'Import a giving file'))}.</>,
         <>{tr('Revisa la lista: cada donación ya viene unida a su miembro cuando el nombre o el correo coinciden. Corrige las que falten y pulsa', 'Check the list: each gift is already matched to its member when the name or e-mail matches. Fix the rest and press')} {b(tr('Importar', 'Import'))}. {tr('Si subes el mismo archivo dos veces, no se repite nada.', 'If you upload the same file twice, nothing is repeated.')}</>,
       ],
     },

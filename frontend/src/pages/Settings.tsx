@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, ArchiveRestore, MessageSquareText, CircleCheck, Copy, DatabaseBackup, Download, History, Mail, Monitor, Moon, Pencil, Plus, Sparkles, Sun, Trash2, TriangleAlert, Upload } from 'lucide-react'
+import { Archive, ArchiveRestore, Church, Clock, Landmark, UserRound, Users, Wallet, MessageSquareText, CircleCheck, Copy, DatabaseBackup, Download, History, Mail, Monitor, Moon, Pencil, Plus, Sparkles, Sun, Trash2, TriangleAlert, Upload } from 'lucide-react'
 import { api, download } from '../lib/api'
 import { useApp } from '../lib/app'
 import { fileUrl } from '../lib/api'
@@ -9,16 +9,15 @@ import { useFunds } from '../lib/data'
 import { seriesColor, useErrorText, useLabels } from '../lib/labels'
 import { OnlineImport } from '../components/OnlineImport'
 import type { Fund, Org, Theme } from '../lib/types'
-import { Avatar, AvatarPicker, Badge, Button, Card, Choice, ErrorNote, Field, IconButton, Modal, PageHeader, Spinner, Tabs, cx, useFeedback } from '../components/ui'
+import { Avatar, AvatarPicker, Badge, Button, Card, Choice, ErrorNote, Field, IconButton, Modal, PageHeader, Spinner, cx, useFeedback } from '../components/ui'
 import { Logo } from '../components/Layout'
 
-type Tab = 'iglesia' | 'finanzas' | 'fondos' | 'equipo' | 'perfil' | 'datos' | 'sistema'
+type Tab = 'iglesia' | 'horario' | 'finanzas' | 'fondos' | 'equipo' | 'perfil' | 'datos' | 'respaldo' | 'sistema'
 
 // ─── Church ──────────────────────────────────────────────────────────────────
 
 function ChurchTab() {
   const { tr, session, refresh } = useApp()
-  const labels = useLabels()
   const { toast, fail } = useFeedback()
   const [f, setF] = useState<Org>(session!.org)
   const [busy, setBusy] = useState(false)
@@ -68,7 +67,28 @@ function ChurchTab() {
           </Field>
         </div>
       </Card>
-      <Card title={tr('Hora, año fiscal y seguridad', 'Time, fiscal year and security')}>
+      <ErrorNote error={error} />
+      <div><Button type="submit" variant="primary" size="lg" busy={busy}>{tr('Guardar cambios', 'Save changes')}</Button></div>
+    </form>
+  )
+}
+
+// ─── Time, fiscal year and security ──────────────────────────────────────────
+
+function ScheduleTab() {
+  const { tr, session, refresh } = useApp()
+  const labels = useLabels()
+  const { toast } = useFeedback()
+  const [f, setF] = useState<Org>(session!.org)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const save = async () => {
+    setBusy(true); setError(null)
+    try { await api.patch('/org', f); await refresh(); toast(tr('Guardado', 'Saved')) } catch (e) { setError(e) } finally { setBusy(false) }
+  }
+  return (
+    <form className="grid gap-5 max-w-4xl" onSubmit={(e) => { e.preventDefault(); save() }}>
+      <Card>
         <div className="grid sm:grid-cols-3 gap-x-5 gap-y-4">
           <Field label={tr('Zona horaria de la iglesia', 'Church time zone')} hint={tr('Decide qué día es «hoy» y a qué hora salen los mensajes automáticos.', 'Decides what day “today” is and when automatic messages go out.')}>
             {(id) => <select id={id} className="ctl" value={f.timezone} onChange={(e) => setF({ ...f, timezone: e.target.value })}>{timeZones(f.timezone).map((z) => <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>)}</select>}
@@ -84,14 +104,6 @@ function ChurchTab() {
           </Field>
         </div>
       </Card>
-      {session!.features.aiConfigured && (
-        <Card title={tr('Inteligencia artificial', 'Artificial intelligence')} hint={tr('Cuando está encendida, los datos necesarios para cada respuesta se envían a Google Gemini. Puedes apagarla para toda la iglesia.', 'When on, the data needed for each answer is sent to Google Gemini. You can turn it off for the whole church.')}>
-          <label className="flex items-center gap-3 cursor-pointer w-fit">
-            <input type="checkbox" className="size-6 accent-[var(--accent)]" checked={f.ai_enabled} onChange={(e) => setF({ ...f, ai_enabled: e.target.checked })} />
-            <span className="font-semibold">{tr('Usar funciones de IA en esta iglesia', 'Use AI features in this church')}</span>
-          </label>
-        </Card>
-      )}
       <ErrorNote error={error} />
       <div><Button type="submit" variant="primary" size="lg" busy={busy}>{tr('Guardar cambios', 'Save changes')}</Button></div>
     </form>
@@ -434,14 +446,6 @@ function DataTab() {
         <Button icon={<Upload size={18} />} onClick={() => setOnline(true)}>{tr('Importar archivo de donaciones', 'Import a giving file')}</Button>
       </Card>
       <OnlineImport open={online} onClose={() => setOnline(false)} />
-      <BackupsCard />
-      <Card title={tr('Descargar una copia', 'Download a copy')} hint={tr('Conviene guardar una copia de seguridad cada mes en una memoria USB o en la nube.', 'It is wise to keep a backup every month on a USB drive or in the cloud.')}>
-        <div className="flex flex-wrap gap-2.5">
-          <Button icon={<DatabaseBackup size={18} />} onClick={() => download('/data/export/backup.json', `sanctuary-${new Date().toISOString().slice(0, 10)}.json`).catch(fail)}>{tr('Copia completa', 'Full backup')}</Button>
-          <Button icon={<Download size={18} />} onClick={() => download('/offerings/export.csv', tr('ofrendas.csv', 'offerings.csv')).catch(fail)}>{tr('Ofrendas (Excel)', 'Offerings (Excel)')}</Button>
-          <Button icon={<Download size={18} />} onClick={() => download('/data/export/members.csv', tr('miembros.csv', 'members.csv')).catch(fail)}>{tr('Miembros (Excel)', 'Members (Excel)')}</Button>
-        </div>
-      </Card>
     </div>
   )
 }
@@ -513,6 +517,23 @@ function BackupsCard() {
   )
 }
 
+function BackupTab() {
+  const { tr } = useApp()
+  const { fail } = useFeedback()
+  return (
+    <div className="grid gap-5 max-w-4xl">
+      <BackupsCard />
+      <Card title={tr('Descargar una copia', 'Download a copy')} hint={tr('Conviene guardar una copia de seguridad cada mes en una memoria USB o en la nube.', 'It is wise to keep a backup every month on a USB drive or in the cloud.')}>
+        <div className="flex flex-wrap gap-2.5">
+          <Button icon={<DatabaseBackup size={18} />} onClick={() => download('/data/export/backup.json', `sanctuary-${new Date().toISOString().slice(0, 10)}.json`).catch(fail)}>{tr('Copia completa', 'Full backup')}</Button>
+          <Button icon={<Download size={18} />} onClick={() => download('/offerings/export.csv', tr('ofrendas.csv', 'offerings.csv')).catch(fail)}>{tr('Ofrendas (Excel)', 'Offerings (Excel)')}</Button>
+          <Button icon={<Download size={18} />} onClick={() => download('/data/export/members.csv', tr('miembros.csv', 'members.csv')).catch(fail)}>{tr('Miembros (Excel)', 'Members (Excel)')}</Button>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 // ─── System ──────────────────────────────────────────────────────────────────
 
 /** Sends Gemini a tiny request and shows, in plain words, whether the key and model work. */
@@ -541,6 +562,25 @@ function AiTest() {
   )
 }
 
+/** The church-wide AI switch. */
+function AiSwitch() {
+  const { tr, session, refresh } = useApp()
+  const { toast, fail } = useFeedback()
+  const on = session!.org.ai_enabled
+  const flip = async () => {
+    try { await api.patch('/org', { ...session!.org, ai_enabled: !on }); await refresh(); toast(!on ? tr('IA encendida', 'AI turned on') : tr('IA apagada para toda la iglesia', 'AI turned off for the whole church')) } catch (e) { fail(e) }
+  }
+  return (
+    <Card title={tr('Usar inteligencia artificial en esta iglesia', 'Use artificial intelligence in this church')}
+      hint={tr('Cuando está encendida, los datos necesarios para cada respuesta (por ejemplo nombres y montos, o la foto del cuaderno) se envían a Google Gemini.', 'When on, the data needed for each answer (for example names and amounts, or the notebook photo) is sent to Google Gemini.')}>
+      <label className="flex items-center gap-3 cursor-pointer w-fit">
+        <input type="checkbox" className="size-6 accent-[var(--accent)]" checked={on} onChange={flip} />
+        <span className="font-semibold">{on ? tr('Encendida', 'On') : tr('Apagada', 'Off')}</span>
+      </label>
+    </Card>
+  )
+}
+
 function SystemTab() {
   const { tr, session, date } = useApp()
   const ai = useQuery({ queryKey: ['ai-status'], queryFn: () => api.get<{ enabled: boolean; model: string }>('/ai/status') })
@@ -557,6 +597,7 @@ function SystemTab() {
   const code = (s: string) => <code className="bg-raised px-1.5 py-0.5 rounded text-[0.9em]">{s}</code>
   return (
     <div className="grid gap-5 max-w-4xl">
+      {session!.features.aiConfigured && <AiSwitch />}
       <Card title={tr('Servicios conectados', 'Connected services')} hint={tr('Estos ajustes los hace quien instaló Sanctuary, en el archivo .env del servidor.', 'These are set by whoever installed Sanctuary, in the server’s .env file.')}>
         <div className="grid gap-6">
           {row(<Sparkles size={21} />, tr('Inteligencia artificial (Google Gemini)', 'Artificial intelligence (Google Gemini)'), !!session!.features.aiConfigured,
@@ -590,24 +631,77 @@ function SystemTab() {
 export default function SettingsPage() {
   const { tr } = useApp()
   const [params, setParams] = useSearchParams()
-  const tab = (params.get('tab') as Tab) || 'iglesia'
+  const sections: { title: string; items: { value: Tab; label: string; text: string; icon: ReactNode }[] }[] = [
+    { title: tr('La iglesia', 'The church'), items: [
+      { value: 'iglesia', label: tr('Datos y logo', 'Details and logo'), text: tr('Nombre, EIN, dirección y quién firma', 'Name, EIN, address and who signs'), icon: <Church size={21} /> },
+      { value: 'horario', label: tr('Hora, año fiscal y seguridad', 'Time, fiscal year and security'), text: tr('Zona horaria y cierre de sesión', 'Time zone and automatic sign-out'), icon: <Clock size={21} /> },
+      { value: 'fondos', label: tr('Fondos', 'Funds'), text: tr('Diezmos, ofrendas, misiones…', 'Tithes, offerings, missions…'), icon: <Wallet size={21} /> },
+      { value: 'finanzas', label: tr('Saldo e informe a la junta', 'Balance and board report'), text: tr('Saldo inicial y correo mensual', 'Opening balance and monthly e-mail'), icon: <Landmark size={21} /> },
+      { value: 'equipo', label: tr('Equipo e invitaciones', 'Team and invitations'), text: tr('Quién más puede entrar', 'Who else can sign in'), icon: <Users size={21} /> },
+    ] },
+    { title: tr('Mi cuenta', 'My account'), items: [
+      { value: 'perfil', label: tr('Mi perfil', 'My profile'), text: tr('Foto, idioma, tema y contraseña', 'Photo, language, theme and password'), icon: <UserRound size={21} /> },
+    ] },
+    { title: tr('Datos', 'Data'), items: [
+      { value: 'datos', label: tr('Importar datos', 'Import data'), text: tr('Desde Excel, Zelle y otros servicios', 'From Excel, Zelle and other services'), icon: <Upload size={21} /> },
+      { value: 'respaldo', label: tr('Copias de seguridad', 'Backups'), text: tr('Guardar, descargar y restaurar', 'Save, download and restore'), icon: <DatabaseBackup size={21} /> },
+    ] },
+    { title: tr('Servicios', 'Services'), items: [
+      { value: 'sistema', label: tr('IA, correo y SMS', 'AI, e-mail and SMS'), text: tr('Qué está conectado', 'What is connected'), icon: <Sparkles size={21} /> },
+    ] },
+  ]
+  const all = sections.flatMap((x) => x.items)
+  const tab = (all.some((x) => x.value === params.get('tab')) ? params.get('tab') : 'iglesia') as Tab
+  const current = all.find((x) => x.value === tab)!
   useEffect(() => { window.scrollTo(0, 0) }, [tab])
   return (
     <>
-      <PageHeader title={tr('Configuración', 'Settings')} />
-      <div className="mb-6">
-        <Tabs value={tab} onChange={(v) => setParams({ tab: v }, { replace: true })} options={[
-          { value: 'iglesia', label: tr('Iglesia', 'Church') }, { value: 'finanzas', label: tr('Finanzas', 'Finances') }, { value: 'fondos', label: tr('Fondos', 'Funds') }, { value: 'equipo', label: tr('Equipo e invitaciones', 'Team & invitations') },
-          { value: 'perfil', label: tr('Mi perfil', 'My profile') }, { value: 'datos', label: tr('Importar y respaldar', 'Import & backup') }, { value: 'sistema', label: tr('IA, correo y SMS', 'AI, e-mail & SMS') },
-        ]} />
+      <PageHeader title={tr('Configuración', 'Settings')} subtitle={tr('Elige una sección. Los cambios se guardan con el botón de cada sección.', 'Choose a section. Changes are saved with each section’s button.')} />
+      <div className="flex flex-wrap gap-8 items-start">
+        <label className="lg:hidden w-full grid gap-1.5 no-print">
+          <span className="font-semibold">{tr('Sección', 'Section')}</span>
+          <select className="ctl" value={tab} onChange={(e) => setParams({ tab: e.target.value }, { replace: true })}>
+            {sections.map((g) => <optgroup key={g.title} label={g.title}>{g.items.map((it) => <option key={it.value} value={it.value}>{it.label}</option>)}</optgroup>)}
+          </select>
+        </label>
+        <nav aria-label={tr('Secciones de configuración', 'Settings sections')} className="hidden lg:grid flex-[1_1_17rem] max-w-[20rem] gap-5 no-print">
+          {sections.map((g) => (
+            <div key={g.title}>
+              <p className="px-3 mb-1.5 text-[0.8rem] font-semibold tracking-[0.08em] uppercase text-ink-soft">{g.title}</p>
+              <ul className="grid gap-1">
+                {g.items.map((it) => {
+                  const on = it.value === tab
+                  return (
+                    <li key={it.value}>
+                      <button type="button" aria-current={on ? 'page' : undefined} onClick={() => setParams({ tab: it.value }, { replace: true })}
+                        className={cx('w-full flex items-start gap-3 text-left px-3 py-2.5 rounded-[12px] transition-colors', on ? 'bg-surface shadow-card border border-line' : 'hover:bg-raised')}>
+                        <span className={cx('mt-0.5 shrink-0', on ? 'text-accent-ink' : 'text-muted')} aria-hidden>{it.icon}</span>
+                        <span className="min-w-0">
+                          <span className={cx('block leading-snug', on ? 'font-bold' : 'font-semibold')}>{it.label}</span>
+                          <span className="block text-ink-soft text-[0.88rem]">{it.text}</span>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+        <section aria-labelledby="seccion" className="flex-[999_1_34rem] min-w-0">
+          <h2 id="seccion" className="font-display text-[1.55rem] leading-tight">{current.label}</h2>
+          <p className="text-ink-soft mt-1 mb-5">{current.text}</p>
+          {tab === 'iglesia' && <ChurchTab />}
+          {tab === 'horario' && <ScheduleTab />}
+          {tab === 'finanzas' && <FinanceTab />}
+          {tab === 'fondos' && <FundsTab />}
+          {tab === 'equipo' && <TeamTab />}
+          {tab === 'perfil' && <ProfileTab />}
+          {tab === 'datos' && <DataTab />}
+          {tab === 'respaldo' && <BackupTab />}
+          {tab === 'sistema' && <SystemTab />}
+        </section>
       </div>
-      {tab === 'iglesia' && <ChurchTab />}
-      {tab === 'finanzas' && <FinanceTab />}
-      {tab === 'fondos' && <FundsTab />}
-      {tab === 'equipo' && <TeamTab />}
-      {tab === 'perfil' && <ProfileTab />}
-      {tab === 'datos' && <DataTab />}
-      {tab === 'sistema' && <SystemTab />}
     </>
   )
 }

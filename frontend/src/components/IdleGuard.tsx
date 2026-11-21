@@ -6,7 +6,7 @@ const KEY = 'sanctuary.activity'
 const read = () => { try { return Number(localStorage.getItem(KEY)) || 0 } catch { return 0 } }
 
 /**
- * Signs out after the church's chosen minutes without activity (Settings → Church), so a computer
+ * Signs out after the church's chosen minutes without activity (Settings → Time, fiscal year and security), so a computer
  * left open in the church office does not stay signed in. One minute before, it asks "Are you still there?".
  * Activity in any tab of the same browser counts.
  */

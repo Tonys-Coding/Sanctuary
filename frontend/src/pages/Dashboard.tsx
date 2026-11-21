@@ -11,6 +11,7 @@ import { Avatar, Button, Card, Empty, PageHeader, Spinner, cx } from '../compone
 import { Columns, FundStack, MonthlyChart, Ranking, Ring } from '../components/charts'
 import { useOfferingForm } from '../components/OfferingForm'
 import { SmsComposer } from '../components/SmsComposer'
+import { ViewTabs } from '../components/ViewTabs'
 import { seriesColor } from '../lib/labels'
 
 interface Dash {
@@ -236,33 +237,6 @@ function TodayStrip({ d }: { d: Dash }) {
   )
 }
 
-/** Four large tabs; arrow keys move between them, as screen-reader users expect. */
-function ViewTabs({ value, onChange, options }: { value: View; onChange: (v: View) => void; options: { value: View; label: string; icon: ReactNode }[] }) {
-  const { tr } = useApp()
-  const move = (dir: number) => {
-    const i = options.findIndex((o) => o.value === value)
-    const next = options[(i + dir + options.length) % options.length].value
-    onChange(next)
-    setTimeout(() => document.getElementById(`tab-${next}`)?.focus())
-  }
-  return (
-    <div role="tablist" aria-label={tr('Secciones del inicio', 'Home sections')} className="grid grid-cols-2 md:grid-cols-4 gap-1.5 p-1.5 rounded-[16px] bg-raised no-print">
-      {options.map((o) => {
-        const on = o.value === value
-        return (
-          <button key={o.value} id={`tab-${o.value}`} type="button" role="tab" aria-selected={on} aria-controls={`panel-${o.value}`} tabIndex={on ? 0 : -1}
-            onClick={() => onChange(o.value)}
-            onKeyDown={(e) => { if (e.key === 'ArrowRight') { e.preventDefault(); move(1) } else if (e.key === 'ArrowLeft') { e.preventDefault(); move(-1) } }}
-            className={cx('min-h-14 rounded-[12px] flex items-center justify-center gap-2.5 text-[1.08rem] transition-colors',
-              on ? 'bg-surface text-ink font-bold shadow-card' : 'text-ink-soft font-semibold hover:text-ink hover:bg-surface/50')}>
-            <span className={on ? 'text-accent-ink' : ''} aria-hidden>{o.icon}</span>{o.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 export default function Dashboard() {
   const { tr, money, date, num, session, lang } = useApp()
   const labels = useLabels()
@@ -374,7 +348,7 @@ export default function Dashboard() {
 
       <SetupChecklist />
       <TodayStrip d={d} />
-      <ViewTabs value={view} onChange={setView} options={views} />
+      <ViewTabs value={view} onChange={setView} options={views} label={tr('Secciones del inicio', 'Home sections')} />
 
       {view === 'resumen' && (
         <div id="panel-resumen" role="tabpanel" aria-labelledby="tab-resumen" className="grid gap-6 [&>*]:min-w-0">

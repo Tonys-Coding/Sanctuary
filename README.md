@@ -49,7 +49,7 @@ These turn on as soon as a key is present and stay hidden until then:
 - **Dictar o pegar notas**: inside a count, type or dictate "María López 50 diezmo, 135 de ofrenda suelta…" and check the rows it finds before adding them.
 - **Leer una foto**: a photo of the notebook page or of checks becomes rows to review; hard-to-read ones are flagged.
 
-Each church can switch AI off in `Configuración → Iglesia`.
+Each church can switch AI off in `Configuración → IA, correo y SMS`.
 - **Mejorar el mensaje**: drafts the e-mail that goes out with reports and statements.
 
 ### Accounts and access

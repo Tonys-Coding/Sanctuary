@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Cake, FileText, Hash, Mail, MapPin, MessageSquareText, Send, Pencil, Phone, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Cake, FileText, HandCoins, Hash, Home, LayoutDashboard, Mail, MapPin, MessageSquareText, MoreHorizontal, Send, Pencil, Phone, Plus, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useLabels } from '../lib/labels'
 import type { Member, Offering } from '../lib/types'
-import { AvatarPicker, Badge, Button, Card, Delta, Empty, Spinner, useFeedback } from '../components/ui'
+import { AvatarPicker, Badge, Button, Card, Empty, Spinner, useFeedback } from '../components/ui'
+import { ViewTabs } from '../components/ViewTabs'
 import { Breakdown, Columns } from '../components/charts'
 import { OfferingTable } from '../components/OfferingTable'
 import { useOfferingForm } from '../components/OfferingForm'
@@ -38,6 +39,10 @@ export default function MemberDetail() {
   const [emailing, setEmailing] = useState(false)
   const [texting, setTexting] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [more, setMore] = useState(false)
+  const [params, setParams] = useSearchParams()
+  const view = (['resumen', 'ofrendas', 'familia'].includes(params.get('vista') || '') ? params.get('vista') : 'resumen') as 'resumen' | 'ofrendas' | 'familia'
+  const setView = (v: typeof view) => setParams(v === 'resumen' ? {} : { vista: v }, { replace: true })
   const { data, isPending, error } = useQuery({ queryKey: ['member', id], queryFn: () => api.get<Detail>(`/members/${id}`) })
   const { data: offerings } = useQuery({ queryKey: ['offerings', 'member', id], queryFn: () => api.get<{ rows: Offering[]; count: number }>(`/offerings?memberId=${id}&limit=100`) })
 
@@ -70,63 +75,113 @@ export default function MemberDetail() {
     m.birth_date && { icon: <Cake size={17} />, text: date(m.birth_date) },
   ].filter(Boolean) as { icon: React.ReactNode; text: string }[]
 
+  const giftsLabel = s.count === 1 ? tr('1 ofrenda', '1 gift') : tr(`${num(s.count)} ofrendas`, `${num(s.count)} gifts`)
+  const yearLabel = session!.org.fiscal_year_start === 1 ? tr(`en ${year}`, `in ${year}`) : tr('este año fiscal', 'this fiscal year')
+  const pctText = change == null ? 0 : Math.round(Math.abs(change))
+  const changeText = change == null ? '' : pctText === 0 ? tr(', igual que el año pasado', ', the same as last year')
+    : change > 0 ? tr(`, un ${pctText}% más que el año pasado`, `, ${pctText}% more than last year`)
+      : tr(`, un ${pctText}% menos que el año pasado`, `, ${pctText}% less than last year`)
+
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-6 max-w-[1240px] [&>*]:min-w-0">
       <Link to="/miembros" className="inline-flex items-center gap-2 text-ink-soft hover:text-ink w-fit no-print"><ArrowLeft size={18} />{tr('Miembros', 'Members')}</Link>
 
-      <section className="card p-5 sm:p-7 flex flex-wrap gap-6 items-start">
-        <AvatarPicker name={m.full_name} file={m.avatar_file} onPick={pick} busy={uploading} />
-        <div className="flex-1 min-w-[240px]">
-          <h1 className="font-display text-[1.9rem] leading-tight">{m.full_name}</h1>
-          <p className="flex flex-wrap gap-2 mt-2">
-            <Badge tone={m.status === 'active' ? 'good' : m.status === 'visitor' ? 'accent' : 'neutral'}>{labels.status(m.status)}</Badge>
-            <Badge>{labels.role(m.church_role)}</Badge>
-            {m.sms_opt_in && <Badge tone="accent">{tr('Acepta SMS', 'Agrees to texts')}</Badge>}
-            {m.joined_date && <Badge>{tr('Desde', 'Since')} {date(m.joined_date)}</Badge>}
-          </p>
-          {contact.length > 0 && (
-            <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-1.5 text-ink-soft">
-              {contact.map((c, i) => <li key={i} className="flex items-center gap-2"><span className="text-muted" aria-hidden>{c.icon}</span>{c.text}</li>)}
-            </ul>
-          )}
-          {m.notes && <p className="mt-4 text-ink-soft max-w-[65ch] whitespace-pre-line">{m.notes}</p>}
+      <section className="card p-5 sm:p-7 grid gap-6">
+        <div className="flex flex-wrap gap-6 items-start">
+          <AvatarPicker name={m.full_name} file={m.avatar_file} onPick={pick} busy={uploading} />
+          <div className="flex-1 min-w-[240px]">
+            <h1 className="font-display text-[2rem] leading-tight">{m.full_name}</h1>
+            <p className="flex flex-wrap gap-2 mt-2">
+              <Badge tone={m.status === 'active' ? 'good' : m.status === 'visitor' ? 'accent' : 'neutral'}>{labels.status(m.status)}</Badge>
+              <Badge>{labels.role(m.church_role)}</Badge>
+              {m.sms_opt_in && <Badge tone="accent">{tr('Acepta SMS', 'Agrees to texts')}</Badge>}
+              {m.joined_date && <Badge>{tr('Desde', 'Since')} {date(m.joined_date)}</Badge>}
+            </p>
+            {contact.length > 0 && (
+              <ul className="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-ink-soft">
+                {contact.map((c, i) => <li key={i} className="flex items-center gap-2 min-w-0"><span className="text-muted shrink-0" aria-hidden>{c.icon}</span><span className="truncate">{c.text}</span></li>)}
+              </ul>
+            )}
+            {m.notes && <p className="mt-4 text-ink-soft max-w-[65ch] whitespace-pre-line">{m.notes}</p>}
+          </div>
         </div>
+        {s.count > 0 && (
+          <p className="text-[1.12rem] leading-relaxed max-w-[70ch]">
+            {tr('Ha dado', 'Has given')} <strong>{money(s.total_year, { whole: true })}</strong> {yearLabel}{changeText}.{' '}
+            {tr(`En total lleva ${giftsLabel}; la última fue el`, `In all, ${giftsLabel}; the last one on`)} <strong>{date(s.last_date)}</strong>.
+          </p>
+        )}
         <div className="flex flex-wrap gap-2.5 no-print">
           <Button variant="primary" icon={<Plus size={19} />} onClick={() => openOffering({ memberId: m.id })}>{tr('Registrar ofrenda', 'Record offering')}</Button>
-          <Button icon={<Pencil size={18} />} onClick={() => setEditing(true)}>{tr('Editar', 'Edit')}</Button>
           <Button icon={<FileText size={18} />} onClick={statement} disabled={s.count === 0}>{tr(`Estado ${year} (PDF)`, `${year} statement (PDF)`)}</Button>
-          {m.email && <Button icon={<Send size={18} />} onClick={() => setEmailing(true)} disabled={s.count === 0}>{tr('Enviar por correo', 'E-mail it')}</Button>}
-          {session!.features.sms && m.sms_opt_in && m.phone && <Button icon={<MessageSquareText size={18} />} onClick={() => setTexting(true)}>{tr('Enviar SMS', 'Send a text')}</Button>}
-          <Button variant="ghost" icon={<Trash2 size={18} />} onClick={remove}>{tr('Eliminar', 'Delete')}</Button>
+          <Button icon={<Pencil size={18} />} onClick={() => setEditing(true)}>{tr('Editar datos', 'Edit details')}</Button>
+          <Button variant="ghost" icon={<MoreHorizontal size={18} />} aria-expanded={more} onClick={() => setMore(!more)}>{more ? tr('Menos', 'Less') : tr('Más acciones', 'More actions')}</Button>
         </div>
+        {more && (
+          <div className="flex flex-wrap gap-2.5 -mt-3 pt-4 border-t border-line no-print">
+            {m.email && <Button icon={<Send size={18} />} onClick={() => setEmailing(true)} disabled={s.count === 0}>{tr('Enviar su estado por correo', 'E-mail their statement')}</Button>}
+            {session!.features.sms && m.sms_opt_in && m.phone && <Button icon={<MessageSquareText size={18} />} onClick={() => setTexting(true)}>{tr('Enviar un SMS', 'Send a text')}</Button>}
+            <Button variant="danger" icon={<Trash2 size={18} />} onClick={remove}>{tr('Eliminar miembro', 'Delete member')}</Button>
+          </div>
+        )}
       </section>
 
-      {s.count === 0 ? (
-        <Card><Empty title={tr('Todavía no tiene ofrendas registradas', 'No offerings recorded yet')} action={<Button variant="primary" onClick={() => openOffering({ memberId: m.id })}>{tr('Registrar la primera', 'Record the first one')}</Button>} /></Card>
-      ) : (<>
-        <section className="card grid grid-cols-2 lg:grid-cols-4 [&>*]:p-5 sm:[&>*]:p-6 [&>*]:border-line [&>*:nth-child(even)]:border-l lg:[&>*+*]:border-l [&>*:nth-child(n+3)]:border-t lg:[&>*:nth-child(n+3)]:border-t-0">
-          <div><p className="text-muted text-[0.93rem]">{session!.org.fiscal_year_start === 1 ? tr(`Dado en ${year}`, `Given in ${year}`) : tr('Dado este año fiscal', 'Given this fiscal year')}</p><p className="mt-1.5 flex flex-wrap items-center gap-2"><span className="text-[1.6rem] font-bold leading-none">{money(s.total_year)}</span><Delta value={change} /></p></div>
-          <div><p className="text-muted text-[0.93rem]">{tr('Total histórico', 'All-time total')}</p><p className="mt-1.5 text-[1.6rem] font-bold leading-none">{money(s.total_all)}</p></div>
-          <div><p className="text-muted text-[0.93rem]">{tr('Ofrenda promedio', 'Average gift')}</p><p className="mt-1.5 text-[1.6rem] font-bold leading-none">{money(s.average)}</p><p className="text-muted text-[0.87rem] mt-2">{tr(`${num(s.count)} ofrendas`, `${num(s.count)} gifts`)}</p></div>
-          <div><p className="text-muted text-[0.93rem]">{tr('Última ofrenda', 'Last gift')}</p><p className="mt-1.5 text-[1.6rem] font-bold leading-none">{date(s.last_date)}</p><p className="text-muted text-[0.87rem] mt-2">{tr('Primera:', 'First:')} {date(s.first_date)}</p></div>
-        </section>
-        <div className="grid xl:grid-cols-3 gap-5">
-          <Card className="xl:col-span-2" title={tr('Últimos 12 meses', 'Last 12 months')}>
-            <Columns data={data.monthly.map((x) => ({ label: labels.month(Number(x.month.slice(5))), value: x.total }))} />
-          </Card>
-          <Card title={tr('Por fondo', 'By fund')} hint={tr('Todo el historial', 'All time')}>
-            <Breakdown empty="" items={data.byFund.map((f) => ({ key: f.id, label: f.name, value: f.total, slot: f.color_slot }))} />
+      <ViewTabs value={view} onChange={setView} label={tr('Secciones del miembro', 'Member sections')} options={[
+        { value: 'resumen', label: tr('Resumen', 'Summary'), icon: <LayoutDashboard size={21} /> },
+        { value: 'ofrendas', label: tr(`Ofrendas (${num(s.count)})`, `Gifts (${num(s.count)})`), icon: <HandCoins size={21} /> },
+        { value: 'familia', label: tr('Familia y constancia', 'Household & statement'), icon: <Home size={21} /> },
+      ]} />
+
+      {view === 'resumen' && (
+        <div id="panel-resumen" role="tabpanel" aria-labelledby="tab-resumen" className="grid gap-6 [&>*]:min-w-0">
+          {s.count === 0 ? (
+            <Card><Empty title={tr('Todavía no tiene ofrendas registradas', 'No offerings recorded yet')} action={<Button variant="primary" onClick={() => openOffering({ memberId: m.id })}>{tr('Registrar la primera', 'Record the first one')}</Button>} /></Card>
+          ) : (<>
+            <section aria-label={tr('Cifras', 'Figures')} className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              {[
+                { label: session!.org.fiscal_year_start === 1 ? tr(`Dado en ${year}`, `Given in ${year}`) : tr('Dado este año fiscal', 'Given this fiscal year'), value: money(s.total_year, { whole: true }), note: s.total_last_year > 0 ? tr(`El año pasado: ${money(s.total_last_year, { whole: true })}`, `Last year: ${money(s.total_last_year, { whole: true })}`) : undefined },
+                { label: tr('Total de siempre', 'All-time total'), value: money(s.total_all, { whole: true }), note: s.first_date ? tr(`Desde el ${date(s.first_date)}`, `Since ${date(s.first_date)}`) : undefined },
+                { label: tr('Ofrenda promedio', 'Average gift'), value: money(s.average, { whole: true }), note: tr(`En ${giftsLabel}`, `Across ${giftsLabel}`) },
+                { label: tr('Última ofrenda', 'Last gift'), value: date(s.last_date), note: tr(`La más grande: ${money(s.largest, { whole: true })}`, `Largest: ${money(s.largest, { whole: true })}`) },
+              ].map((x) => (
+                <div key={x.label} className="card p-6">
+                  <p className="text-ink-soft font-semibold">{x.label}</p>
+                  <p className="mt-1 text-[1.9rem] font-bold leading-tight tabular-nums">{x.value}</p>
+                  {x.note && <p className="text-ink-soft text-[0.95rem] mt-1">{x.note}</p>}
+                </div>
+              ))}
+            </section>
+            <div className="grid xl:grid-cols-3 gap-6 [&>*]:min-w-0">
+              <Card className="xl:col-span-2" title={tr('Los últimos 12 meses', 'The last 12 months')} hint={tr('Lo que dio cada mes.', 'What they gave each month.')}>
+                <Columns data={data.monthly.map((x) => ({ label: labels.month(Number(x.month.slice(5))), value: x.total }))} />
+              </Card>
+              <Card title={tr('¿A qué fondos dio?', 'Which funds?')} hint={tr('Todo el historial', 'All time')}>
+                <Breakdown empty="" items={data.byFund.map((f) => ({ key: f.id, label: f.name, value: f.total, slot: f.color_slot }))} />
+              </Card>
+            </div>
+          </>)}
+        </div>
+      )}
+
+      {view === 'ofrendas' && (
+        <div id="panel-ofrendas" role="tabpanel" aria-labelledby="tab-ofrendas">
+          <Card pad={false} title={tr('Sus ofrendas', 'Their offerings')} hint={offerings && offerings.count > 100 ? tr('Se muestran las 100 más recientes.', 'Showing the 100 most recent.') : undefined}
+            action={<Button size="sm" variant="primary" icon={<Plus size={17} />} onClick={() => openOffering({ memberId: m.id })}>{tr('Registrar', 'Record')}</Button>}>
+            <div className="mt-4 border-t border-line">
+              {!offerings ? <Spinner /> : offerings.rows.length === 0 ? <p className="text-muted p-6">{tr('Todavía no tiene ofrendas registradas.', 'No offerings recorded yet.')}</p> : <OfferingTable rows={offerings.rows} hideMember />}
+            </div>
           </Card>
         </div>
-        <Card pad={false} title={tr('Sus ofrendas', 'Their offerings')} hint={offerings && offerings.count > 100 ? tr('Se muestran las 100 más recientes.', 'Showing the 100 most recent.') : undefined}>
-          <div className="mt-4 border-t border-line">{offerings ? <OfferingTable rows={offerings.rows} hideMember /> : <Spinner />}</div>
-        </Card>
-      </>)}
-      <div className="grid lg:grid-cols-3 gap-5 items-start">
-        <HouseholdCard member={m} household={data.household} />
-        <PersonalLinkCard member={m} />
-        <NonCashCard member={m} />
-      </div>
+      )}
+
+      {view === 'familia' && (
+        <div id="panel-familia" role="tabpanel" aria-labelledby="tab-familia" className="grid lg:grid-cols-2 gap-6 items-start [&>*]:min-w-0">
+          <HouseholdCard member={m} household={data.household} />
+          <PersonalLinkCard member={m} />
+          <NonCashCard member={m} />
+        </div>
+      )}
+
       <MemberForm open={editing} member={m} onClose={() => setEditing(false)} />
       <SmsComposer open={texting} onClose={() => setTexting(false)} preselect={[m.id]} />
       {m.email && (

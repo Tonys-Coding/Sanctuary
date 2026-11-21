@@ -53,7 +53,7 @@ r.get('/setup', async (req, res) => {
   const f = features();
   const steps = [
     { key: 'church', done: !!(c.legal_name && c.tax_id && c.address && c.city), to: '/configuracion?tab=iglesia' },
-    { key: 'timezone', done: c.timezone !== 'UTC', to: '/configuracion?tab=iglesia' },
+    { key: 'timezone', done: c.timezone !== 'UTC', to: '/configuracion?tab=horario' },
     { key: 'signer', done: !!(c.treasurer_name || c.pastor_name), to: '/configuracion?tab=iglesia' },
     { key: 'logo', done: !!c.logo_file, to: '/configuracion?tab=iglesia' },
     { key: 'funds', done: c.fund_changes > 0 || c.offerings > 0, to: '/configuracion?tab=fondos' },
@@ -61,7 +61,7 @@ r.get('/setup', async (req, res) => {
     { key: 'first_count', done: c.batches > 0, to: '/conteos' },
     { key: 'team', done: c.users > 1 || c.invitations > 0, to: '/configuracion?tab=equipo' },
     { key: 'opening_balance', done: c.opening_balance !== null, to: '/configuracion?tab=finanzas' },
-    { key: 'backup', done: c.backups > 0 || (await listBackups(o)).some((b: any) => b.kind === 'manual'), to: '/configuracion?tab=datos' },
+    { key: 'backup', done: c.backups > 0 || (await listBackups(o)).some((b: any) => b.kind === 'manual'), to: '/configuracion?tab=respaldo' },
     { key: 'email', done: f.email, to: '/ayuda', optional: true },
   ];
   res.json({ steps, done: steps.filter((s) => s.done).length, total: steps.length });

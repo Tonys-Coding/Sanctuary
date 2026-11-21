@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Markdown from 'react-markdown'
-import { CalendarCheck, CalendarDays, ClipboardList, Download, FileSpreadsheet, HandCoins, Layers, List, Mail, Printer, Receipt, Scale, Sparkles, UserRound, Users, Wallet, X } from 'lucide-react'
+import { CalendarCheck, CalendarDays, ClipboardList, Download, FileSpreadsheet, HandCoins, Layers, List, Mail, Printer, Receipt, Scale, SlidersHorizontal, Sparkles, UserRound, Users, Wallet, X } from 'lucide-react'
 import { api, download } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useFunds } from '../lib/data'
@@ -13,6 +13,7 @@ import { Button, Card, Empty, ErrorNote, Field, PageHeader, Spinner, cx, useFeed
 import { MemberPicker } from '../components/MemberPicker'
 import { EmailComposer } from '../components/EmailComposer'
 import { usePdfPreview } from '../components/PdfPreview'
+import { ViewTabs } from '../components/ViewTabs'
 
 type Type = 'summary' | 'by_member' | 'by_fund' | 'by_month' | 'by_method' | 'transactions' | 'member' | 'batches' | 'treasurer' | 'expenses'
 
@@ -98,6 +99,7 @@ export default function Reports() {
   const [explaining, setExplaining] = useState(false)
   const [emailing, setEmailing] = useState(false)
   const [busy, setBusy] = useState('')
+  const [mode, setMode] = useState<'listos' | 'medida'>('listos')
 
   const types: { value: Type; icon: ReactNode; label: string; text: string }[] = [
     { value: 'summary', icon: <Layers size={22} />, label: tr('Resumen general', 'Overall summary'), text: tr('Lo esencial en una hoja: por fondo, mes y método.', 'The essentials on one page: by fund, month and method.') },
@@ -112,6 +114,22 @@ export default function Reports() {
     { value: 'expenses', icon: <Receipt size={22} />, label: tr('Gastos', 'Expenses'), text: tr('Cada gasto pagado, uno por línea.', 'Every expense paid, one per line.') },
   ]
   const noFilters = type === 'batches' || type === 'treasurer' || type === 'expenses'
+  const byValue = (v: Type) => types.find((t) => t.value === v)!
+  const groups = [
+    { title: tr('Ofrendas', 'Offerings'), items: (['summary', 'by_month', 'by_fund', 'by_method', 'transactions'] as Type[]).map(byValue) },
+    { title: tr('Personas', 'People'), items: (['by_member', 'member'] as Type[]).map(byValue) },
+    { title: tr('Tesorería', 'Treasury'), items: (['treasurer', 'expenses', 'batches'] as Type[]).map(byValue) },
+  ]
+  const yearRange: RangeKey = fys === 1 ? 'this_year' : 'fiscal_year'
+  const ready_made: { icon: ReactNode; title: string; text: string; t: Type; r: RangeKey }[] = [
+    { icon: <Scale size={24} />, title: tr('Tesorería del mes pasado', 'Last month’s treasury'), text: tr('Saldo, ingresos, gastos y depósitos. Para la junta.', 'Balance, income, expenses and deposits. For the board.'), t: 'treasurer', r: 'last_month' },
+    { icon: <CalendarCheck size={24} />, title: tr('Ofrendas del mes pasado', 'Last month’s giving'), text: tr('Por fondo, por semana y por forma de pago.', 'By fund, by week and by payment method.'), t: 'summary', r: 'last_month' },
+    { icon: <Layers size={24} />, title: tr('Resumen del año', 'Year summary'), text: tr('Todo lo recibido este año, mes por mes.', 'Everything received this year, month by month.'), t: 'summary', r: yearRange },
+    { icon: <Users size={24} />, title: tr('Lo que dio cada miembro', 'What each member gave'), text: tr('Este año, persona por persona.', 'This year, person by person.'), t: 'by_member', r: yearRange },
+    { icon: <Receipt size={24} />, title: tr('Gastos del mes pasado', 'Last month’s expenses'), text: tr('Cada pago, con su categoría.', 'Every payment, with its category.'), t: 'expenses', r: 'last_month' },
+    { icon: <ClipboardList size={24} />, title: tr('Conteos del mes pasado', 'Last month’s counts'), text: tr('Cada culto contado y su total.', 'Each counted service and its total.'), t: 'batches', r: 'last_month' },
+  ]
+  const pickPreset = (t: Type, r: RangeKey) => { setType(t); setRange(r); setFundId(''); setMethod(''); setMemberId(null) }
 
   const dates = range === 'custom' ? custom : rangeFor(range, fys)
   const ready = !!dates.from && !!dates.to && (type !== 'member' || !!memberId)
@@ -135,79 +153,97 @@ export default function Reports() {
     <>
       <PageHeader title={tr('Informes', 'Reports')} subtitle={tr('Elige qué quieres ver y de qué periodo. El informe aparece abajo, listo para imprimir, descargar o enviar por correo.', 'Choose what you want to see and for which period. The report appears below, ready to print, download or e-mail.')} />
 
-      {/* The reports a treasurer asks for most, one click each. */}
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5 no-print">
-        {([
-          { icon: <CalendarCheck size={24} />, title: tr('Informe del mes pasado', 'Last month’s report'), text: tr('Ofrendas del mes, para la junta o el pastor', 'The month’s giving, for the board or the pastor'), t: 'summary' as Type, r: 'last_month' as RangeKey },
-          { icon: <Scale size={24} />, title: tr('Tesorería del mes pasado', 'Last month’s treasury'), text: tr('Saldo, ingresos y gastos', 'Balance, income and expenses'), t: 'treasurer' as Type, r: 'last_month' as RangeKey },
-          { icon: <Layers size={24} />, title: tr('Resumen del año', 'Year summary'), text: tr('Todo lo recibido este año', 'Everything received this year'), t: 'summary' as Type, r: 'this_year' as RangeKey },
-          { icon: <Users size={24} />, title: tr('Lo que dio cada miembro', 'What each member gave'), text: tr('Este año, persona por persona', 'This year, person by person'), t: 'by_member' as Type, r: 'this_year' as RangeKey },
-        ]).map((p) => {
-          const on = type === p.t && range === p.r && !fundId && !method
-          return (
-            <button key={p.title} type="button" onClick={() => { setType(p.t); setRange(p.r); setFundId(''); setMethod('') }}
-              className={cx('card flex items-center gap-4 p-4 text-left transition-colors', on ? 'border-accent bg-accent-soft/50' : 'hover:border-accent')}>
-              <span className={cx('size-12 rounded-[14px] grid place-items-center shrink-0', on ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent-ink')} aria-hidden>{p.icon}</span>
-              <span className="min-w-0">
-                <span className="block font-semibold leading-snug">{p.title}</span>
-                <span className="block text-muted text-[0.88rem]">{p.text}</span>
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      <div className="grid gap-6 [&>*]:min-w-0">
+        <ViewTabs value={mode} onChange={setMode} label={tr('Cómo elegir el informe', 'How to choose the report')} options={[
+          { value: 'listos', label: tr('Informes listos', 'Ready-made reports'), icon: <CalendarCheck size={21} /> },
+          { value: 'medida', label: tr('Armar uno a mi medida', 'Build my own'), icon: <SlidersHorizontal size={21} /> },
+        ]} />
 
-      <div className="grid gap-5">
-        <Card className="no-print" title={tr('O arma tu propio informe: 1. ¿Qué necesitas ver?', 'Or build your own: 1. What do you need to see?')}>
-          <div role="radiogroup" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {types.map((t) => (
-              <button key={t.value} type="button" role="radio" aria-checked={type === t.value} onClick={() => setType(t.value)}
-                className={cx('text-left p-4 rounded-[14px] border-[1.5px] transition-colors', type === t.value ? 'border-accent bg-accent-soft' : 'border-line hover:bg-raised')}>
-                <span className={cx('block mb-2', type === t.value ? 'text-accent-ink' : 'text-muted')} aria-hidden>{t.icon}</span>
-                <span className="block font-semibold leading-snug">{t.label}</span>
-                <span className="block text-muted text-[0.87rem] mt-0.5">{t.text}</span>
-              </button>
-            ))}
-          </div>
+        {mode === 'listos' && (
+          <section id="panel-listos" role="tabpanel" aria-labelledby="tab-listos" className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3 no-print">
+            {ready_made.map((p) => {
+              const on = type === p.t && range === p.r && !fundId && !method
+              return (
+                <button key={p.title} type="button" aria-pressed={on} onClick={() => pickPreset(p.t, p.r)}
+                  className={cx('card flex items-start gap-4 p-5 text-left transition-colors', on ? 'border-accent bg-accent-soft/50' : 'hover:border-accent')}>
+                  <span className={cx('size-12 rounded-[14px] grid place-items-center shrink-0', on ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent-ink')} aria-hidden>{p.icon}</span>
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-[1.08rem] leading-snug">{p.title}</span>
+                    <span className="block text-ink-soft text-[0.95rem] mt-0.5">{p.text}</span>
+                  </span>
+                </button>
+              )
+            })}
+          </section>
+        )}
 
-          <h2 className="font-semibold text-[1.05rem] mt-7 mb-4">{tr('2. Periodo y filtros', '2. Period and filters')}</h2>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Field label={tr('Periodo', 'Period')}>
-              {(id) => <select id={id} className="ctl" value={range} onChange={(e) => setRange(e.target.value as RangeKey)}>{rangeOptions(tr, false, fys).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>}
-            </Field>
-            {range === 'custom' && (<>
-              <Field label={tr('Desde', 'From')}>{(id) => <input id={id} type="date" className="ctl" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} />}</Field>
-              <Field label={tr('Hasta', 'To')}>{(id) => <input id={id} type="date" className="ctl" value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} />}</Field>
-            </>)}
-            {type === 'member' && (
-              <Field label={tr('Miembro', 'Member')} className="sm:col-span-2">{(id) => <MemberPicker id={id} value={memberId} onChange={setMemberId} allowLoose={false} />}</Field>
-            )}
-            {!noFilters && (<>
-              <Field label={tr('Fondo', 'Fund')}>
-                {(id) => <select id={id} className="ctl" value={fundId} onChange={(e) => setFundId(e.target.value)}><option value="">{tr('Todos', 'All')}</option>{funds.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>}
-              </Field>
-              <Field label={tr('Método de pago', 'Payment method')}>
-                {(id) => <select id={id} className="ctl" value={method} onChange={(e) => setMethod(e.target.value)}><option value="">{tr('Todos', 'All')}</option>{METHODS.map((m) => <option key={m} value={m}>{labels.method(m)}</option>)}</select>}
-              </Field>
-            </>)}
-            <Field label={tr('Idioma del informe', 'Report language')}>
-              {(id) => <select id={id} className="ctl" value={reportLang} onChange={(e) => setReportLang(e.target.value as Lang)}><option value="es">Español</option><option value="en">English</option></select>}
-            </Field>
-          </div>
-        </Card>
+        {mode === 'medida' && (
+          <Card className="no-print">
+            <div id="panel-medida" role="tabpanel" aria-labelledby="tab-medida">
+              <h2 className="font-semibold text-[1.15rem] mb-4">{tr('1. ¿Qué necesitas ver?', '1. What do you need to see?')}</h2>
+              <div className="grid lg:grid-cols-3 gap-6">
+                {groups.map((g) => (
+                  <fieldset key={g.title} className="min-w-0">
+                    <legend className="text-[0.82rem] font-semibold uppercase tracking-[0.08em] text-ink-soft mb-2">{g.title}</legend>
+                    <div role="radiogroup" aria-label={g.title} className="grid gap-2">
+                      {g.items.map((t) => (
+                        <button key={t.value} type="button" role="radio" aria-checked={type === t.value} onClick={() => setType(t.value)}
+                          className={cx('flex items-start gap-3 text-left p-3.5 rounded-[14px] border-[1.5px] transition-colors', type === t.value ? 'border-accent bg-accent-soft' : 'border-line hover:bg-raised')}>
+                          <span className={cx('mt-0.5 shrink-0', type === t.value ? 'text-accent-ink' : 'text-muted')} aria-hidden>{t.icon}</span>
+                          <span><span className="block font-semibold leading-snug">{t.label}</span><span className="block text-ink-soft text-[0.9rem]">{t.text}</span></span>
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
+
+              <h2 className="font-semibold text-[1.15rem] mt-8 mb-4">{tr('2. ¿De qué periodo?', '2. For which period?')}</h2>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <Field label={tr('Periodo', 'Period')}>
+                  {(id) => <select id={id} className="ctl" value={range} onChange={(e) => setRange(e.target.value as RangeKey)}>{rangeOptions(tr, false, fys).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>}
+                </Field>
+                {range === 'custom' && (<>
+                  <Field label={tr('Desde', 'From')}>{(id) => <input id={id} type="date" className="ctl" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} />}</Field>
+                  <Field label={tr('Hasta', 'To')}>{(id) => <input id={id} type="date" className="ctl" value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} />}</Field>
+                </>)}
+                {type === 'member' && (
+                  <Field label={tr('Miembro', 'Member')} className="sm:col-span-2">{(id) => <MemberPicker id={id} value={memberId} onChange={setMemberId} allowLoose={false} />}</Field>
+                )}
+                <Field label={tr('Idioma del informe', 'Report language')}>
+                  {(id) => <select id={id} className="ctl" value={reportLang} onChange={(e) => setReportLang(e.target.value as Lang)}><option value="es">Español</option><option value="en">English</option></select>}
+                </Field>
+              </div>
+              {!noFilters && (
+                <details className="mt-5 rounded-[14px] border border-line px-4 py-2" open={!!fundId || !!method}>
+                  <summary className="font-semibold text-ink-soft py-2 cursor-pointer">{tr('Filtrar por fondo o forma de pago (opcional)', 'Filter by fund or payment method (optional)')}</summary>
+                  <div className="grid gap-4 sm:grid-cols-2 pt-2 pb-3">
+                    <Field label={tr('Fondo', 'Fund')}>
+                      {(id) => <select id={id} className="ctl" value={fundId} onChange={(e) => setFundId(e.target.value)}><option value="">{tr('Todos', 'All')}</option>{funds.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select>}
+                    </Field>
+                    <Field label={tr('Forma de pago', 'Payment method')}>
+                      {(id) => <select id={id} className="ctl" value={method} onChange={(e) => setMethod(e.target.value)}><option value="">{tr('Todas', 'All')}</option>{METHODS.map((m) => <option key={m} value={m}>{labels.method(m)}</option>)}</select>}
+                    </Field>
+                  </div>
+                </details>
+              )}
+            </div>
+          </Card>
+        )}
 
         <Card>
           {!ready ? (
             <Empty icon={<UserRound size={28} />} title={type === 'member' ? tr('Elige un miembro para ver su estado', 'Choose a member to see their statement') : tr('Elige las fechas del informe', 'Choose the report dates')} />
           ) : error ? <ErrorNote error={error} /> : !report ? <Spinner /> : (<>
-            <div className="flex flex-wrap gap-2.5 mb-6 pb-5 border-b border-line no-print">
-              <Button variant="primary" icon={<Printer size={18} />} onClick={() => window.print()}>{tr('Imprimir', 'Print')}</Button>
-              <Button icon={<Download size={18} />} onClick={() => preview({ title: report.title, filename: fileName('pdf'), load: () => api.post<Blob>('/reports/pdf', { ...spec, note: shownNote || undefined }) })}>{tr('Descargar PDF', 'Download PDF')}</Button>
-              <Button icon={<FileSpreadsheet size={18} />} busy={busy === 'csv'} onClick={() => run('csv', () => download('/reports/csv', fileName('csv'), spec))}>{tr('Descargar Excel', 'Download Excel')}</Button>
+            <div className="flex flex-wrap items-center gap-2.5 mb-6 pb-5 border-b border-line no-print">
+              <Button variant="primary" icon={<Download size={18} />} onClick={() => preview({ title: report.title, filename: fileName('pdf'), load: () => api.post<Blob>('/reports/pdf', { ...spec, note: shownNote || undefined }) })}>{tr('Descargar PDF', 'Download PDF')}</Button>
+              <Button icon={<Printer size={18} />} onClick={() => window.print()}>{tr('Imprimir', 'Print')}</Button>
               <Button icon={<Mail size={18} />} onClick={() => setEmailing(true)}>{tr('Enviar por correo', 'Send by e-mail')}</Button>
+              <span className="hidden sm:block w-px h-8 bg-line mx-1" aria-hidden />
+              <Button variant="ghost" icon={<FileSpreadsheet size={18} />} busy={busy === 'csv'} onClick={() => run('csv', () => download('/reports/csv', fileName('csv'), spec))}>Excel</Button>
               {session!.features.ai && (shownNote
                 ? <Button variant="ghost" icon={<X size={18} />} onClick={() => setNote(null)}>{tr('Quitar explicación', 'Remove explanation')}</Button>
-                : <Button icon={<Sparkles size={18} />} busy={explaining} onClick={explain}>{tr('Explicar con IA', 'Explain with AI')}</Button>)}
+                : <Button variant="ghost" icon={<Sparkles size={18} />} busy={explaining} onClick={explain}>{tr('Explicar con IA', 'Explain with AI')}</Button>)}
             </div>
             <div className={cx('transition-opacity', isFetching && 'opacity-50')}><ReportView report={report} note={shownNote} /></div>
           </>)}

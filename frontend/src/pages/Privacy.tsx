@@ -29,7 +29,7 @@ export default function Privacy({ standalone }: { standalone?: boolean }) {
         <li>{tr('Correos: solo cuando alguien del equipo envía un informe, una constancia o un enlace, o cuando está activado el informe mensual a la junta.', 'E-mail: only when a team member sends a report, a statement or a link, or when the monthly board report is turned on.')}</li>
         <li>{tr('Mensajes de texto (Twilio): solo a miembros que aceptaron recibirlos.', 'Text messages (Twilio): only to members who agreed to receive them.')}</li>
         <li>{ai
-          ? tr('Inteligencia artificial (Google Gemini): cuando usas una función de IA, se envían a Google los datos necesarios para responder (por ejemplo, nombres y montos, o la foto del cuaderno). La iglesia puede apagar la IA en Configuración → Iglesia.', 'Artificial intelligence (Google Gemini): when you use an AI feature, the data needed to answer (for example names and amounts, or the notebook photo) is sent to Google. The church can turn AI off in Settings → Church.')
+          ? tr('Inteligencia artificial (Google Gemini): cuando usas una función de IA, se envían a Google los datos necesarios para responder (por ejemplo, nombres y montos, o la foto del cuaderno). La iglesia puede apagar la IA en Configuración → IA, correo y SMS.', 'Artificial intelligence (Google Gemini): when you use an AI feature, the data needed to answer (for example names and amounts, or the notebook photo) is sent to Google. The church can turn AI off in Settings → AI, e-mail and SMS.')
           : tr('Inteligencia artificial: no está activada en este servidor, así que no se envía nada.', 'Artificial intelligence: it is not turned on on this server, so nothing is sent.')}</li>
       </ul>,
     },
@@ -43,7 +43,7 @@ export default function Privacy({ standalone }: { standalone?: boolean }) {
     },
     {
       title: tr('Sus derechos', 'Your rights'),
-      body: <p>{tr('Cualquier miembro puede pedir a la tesorería ver, corregir o eliminar sus datos. Las ofrendas de años anteriores pueden tener que conservarse por razones fiscales; en ese caso se archivan en lugar de borrarse. La iglesia puede descargar todos sus datos en cualquier momento desde Configuración → Datos.', 'Any member can ask the treasury to see, correct or delete their data. Gifts from past years may need to be kept for tax reasons; in that case they are archived instead of deleted. The church can download all of its data at any time from Settings → Data.')}</p>,
+      body: <p>{tr('Cualquier miembro puede pedir a la tesorería ver, corregir o eliminar sus datos. Las ofrendas de años anteriores pueden tener que conservarse por razones fiscales; en ese caso se archivan en lugar de borrarse. La iglesia puede descargar todos sus datos en cualquier momento desde Configuración → Copias de seguridad.', 'Any member can ask the treasury to see, correct or delete their data. Gifts from past years may need to be kept for tax reasons; in that case they are archived instead of deleted. The church can download all of its data at any time from Settings → Backups.')}</p>,
     },
   ]
   const body = (
