@@ -132,6 +132,24 @@ export async function dashboard(orgId: string, yearParam?: number) {
     },
     monthly, byFund, byMethod, topMembers, yearly: yearly.map((y) => ({ ...y, label: label(y.year) })), recent, goals, insights,
     weekly, segments: { ...segments, regularMonths }, celebrations, finance,
+    today: await todayList(orgId),
+  };
+}
+
+/** What is waiting to be done, whatever year is being viewed: open counts, money for the bank, deposits to check. */
+export async function todayList(orgId: string) {
+  const r = await one(
+    `SELECT (SELECT count(*)::int FROM batches WHERE org_id = $1 AND status = 'open') AS open_counts,
+            (SELECT min(date) FROM batches WHERE org_id = $1 AND status = 'open') AS oldest_open,
+            (SELECT count(*)::int FROM batches WHERE org_id = $1 AND status = 'closed' AND deposit_id IS NULL) AS to_deposit,
+            (SELECT COALESCE(sum(o.amount), 0) FROM offerings o JOIN batches b ON b.id = o.batch_id
+              WHERE b.org_id = $1 AND b.status = 'closed' AND b.deposit_id IS NULL AND o.method IN ('cash', 'check')) AS to_deposit_total,
+            (SELECT count(*)::int FROM deposits WHERE org_id = $1 AND status = 'pending') AS to_bank,
+            (SELECT count(*)::int FROM deposits WHERE org_id = $1 AND status = 'deposited') AS to_reconcile`, [orgId]);
+  return {
+    openCounts: r.open_counts as number, oldestOpen: r.oldest_open as string | null,
+    toDeposit: r.to_deposit as number, toDepositTotal: r.to_deposit_total as number,
+    toBank: r.to_bank as number, toReconcile: r.to_reconcile as number,
   };
 }
 

@@ -1,14 +1,14 @@
 import { useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Markdown from 'react-markdown'
-import { Cake, ChevronRight, Church, Circle, CircleCheck, Wallet, ClipboardList, MessageSquareText, Phone, FileText, HandCoins, Landmark, PieChart, Plus, RefreshCw, Sparkles, Star, TrendingDown, TrendingUp, UserPlus, UserX } from 'lucide-react'
+import { Cake, ChevronRight, Church, Circle, CircleCheck, Wallet, ClipboardList, LayoutDashboard, Lock, MessageSquareText, Phone, FileText, HandCoins, Landmark, PieChart, Plus, RefreshCw, Scale, Sparkles, Star, Target, TrendingDown, TrendingUp, UserPlus, Users, UserX } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { METHODS, useLabels, useErrorText } from '../lib/labels'
 import type { Goal, Offering } from '../lib/types'
-import { Avatar, Button, Card, Delta, Empty, PageHeader, Spinner, Tabs, cx } from '../components/ui'
-import { Columns, Donut, FundStack, MonthlyChart, Ranking, Ring, Sparkline } from '../components/charts'
+import { Avatar, Button, Card, Empty, PageHeader, Spinner, cx } from '../components/ui'
+import { Columns, FundStack, MonthlyChart, Ranking, Ring } from '../components/charts'
 import { useOfferingForm } from '../components/OfferingForm'
 import { SmsComposer } from '../components/SmsComposer'
 import { seriesColor } from '../lib/labels'
@@ -25,6 +25,7 @@ interface Dash {
   byMethod: { method: string; total: number; count: number }[]
   topMembers: { id: string; name: string; avatar_file: string | null; total: number; count: number }[]
   yearly: { year: number; total: number; label: string }[]
+  today: { openCounts: number; oldestOpen: string | null; toDeposit: number; toDepositTotal: number; toBank: number; toReconcile: number }
   finance: { incomeMonth: number; expensesMonth: number; balance: number; openingBalance: number | null; openingDate: string | null; tracksExpenses: boolean }
   recent: Offering[]
   goals: Goal[]
@@ -137,7 +138,7 @@ function FinanceStrip({ f, monthName }: { f: Dash['finance']; monthName: string 
     <section className="card grid sm:grid-cols-3 [&>*+*]:border-t sm:[&>*+*]:border-t-0 sm:[&>*+*]:border-l [&>*]:border-line" aria-label={tr('Finanzas', 'Finances')}>
       <Link to="/gastos" className="p-5 hover:bg-raised/50 transition-colors">
         <p className="text-muted flex items-center gap-2"><Wallet size={18} aria-hidden />{tr('Saldo estimado hoy', 'Estimated balance today')}</p>
-        <p className="mt-1.5 text-[1.7rem] font-bold leading-none">{money(f.balance)}</p>
+        <p className="mt-1.5 text-[1.7rem] font-bold leading-none">{money(f.balance, { whole: true })}</p>
         {f.openingBalance == null && <p className="text-muted text-[0.86rem] mt-2">{tr('Anota el saldo inicial en Configuración para que sea exacto.', 'Enter the opening balance in Settings to make it exact.')}</p>}
       </Link>
       <div className="p-5">
@@ -149,20 +150,6 @@ function FinanceStrip({ f, monthName }: { f: Dash['finance']; monthName: string 
         <p className={cx('mt-1.5 text-[1.7rem] font-bold leading-none', net >= 0 ? 'text-good' : 'text-bad')}>{net >= 0 ? '+' : '−'} {money(Math.abs(net), { whole: true })}</p>
       </div>
     </section>
-  )
-}
-
-function Stat({ label, value, note, badge, spark, sparkLabel }: { label: string; value: string; note?: string; badge?: ReactNode; spark?: number[]; sparkLabel?: string }) {
-  return (
-    <div className="p-5 sm:p-6 flex flex-col">
-      <p className="text-muted">{label}</p>
-      <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-[2rem] font-bold leading-none tracking-tight">{value}</span>
-        {badge}
-      </p>
-      {note && <p className="text-muted text-[0.88rem] mt-2">{note}</p>}
-      {spark && spark.length > 1 && <div className="mt-auto pt-4"><Sparkline values={spark} height={34} label={sparkLabel} /></div>}
-    </div>
   )
 }
 
@@ -193,12 +180,98 @@ function AiSummary({ year }: { year: number }) {
   )
 }
 
+type View = 'resumen' | 'dinero' | 'personas' | 'metas'
+
+/** Horizontal bars with the name, the amount and its share spelled out: easier to read than a donut. */
+function ShareBars({ items, empty }: { items: { key: string; label: string; value: number; color: string }[]; empty: string }) {
+  const { money } = useApp()
+  const total = items.reduce((a, i) => a + i.value, 0)
+  if (!total) return <p className="text-muted py-4">{empty}</p>
+  return (
+    <ul className="grid gap-4">
+      {items.map((i) => {
+        const pct = Math.round((i.value / total) * 100)
+        return (
+          <li key={i.key}>
+            <div className="flex justify-between gap-3">
+              <span>{i.label}</span>
+              <span className="font-semibold tabular-nums whitespace-nowrap">{money(i.value, { whole: true })} <span className="text-muted font-normal">· {pct}%</span></span>
+            </div>
+            <div className="h-2.5 rounded-full bg-raised mt-1.5 overflow-hidden" aria-hidden>
+              <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 1)}%`, background: i.color }} />
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+/** The short "today" strip above the tabs: what is waiting, each a link to where it is done. */
+function TodayStrip({ d }: { d: Dash }) {
+  const { tr, money } = useApp()
+  const t = d.today
+  const today = d.celebrations.filter((c) => c.in_days === 0)
+  const chips: { key: string; icon: ReactNode; text: string; to: string; warn?: boolean }[] = []
+  if (t.openCounts) chips.push({ key: 'open', icon: <Lock size={19} />, warn: true, to: '/conteos', text: t.openCounts === 1 ? tr('1 conteo sin cerrar', '1 count not closed') : tr(`${t.openCounts} conteos sin cerrar`, `${t.openCounts} counts not closed`) })
+  if (t.toDeposit) chips.push({ key: 'dep', icon: <Landmark size={19} />, to: '/depositos', text: tr(`Llevar ${money(t.toDepositTotal, { whole: true })} al banco`, `Take ${money(t.toDepositTotal, { whole: true })} to the bank`) })
+  if (t.toBank) chips.push({ key: 'bank', icon: <Landmark size={19} />, to: '/depositos', text: t.toBank === 1 ? tr('1 depósito preparado sin llevar', '1 deposit ready to take') : tr(`${t.toBank} depósitos preparados sin llevar`, `${t.toBank} deposits ready to take`) })
+  if (t.toReconcile) chips.push({ key: 'rec', icon: <Scale size={19} />, to: '/depositos', text: t.toReconcile === 1 ? tr('1 depósito por conciliar', '1 deposit to reconcile') : tr(`${t.toReconcile} depósitos por conciliar`, `${t.toReconcile} deposits to reconcile`) })
+  for (const c of today.slice(0, 2)) {
+    chips.push({
+      key: `c-${c.member_id}-${c.kind}`, icon: c.kind === 'birthday' ? <Cake size={19} /> : <Church size={19} />, to: '/?vista=personas',
+      text: c.kind === 'birthday' ? tr(`Hoy cumple años ${c.first_name}`, `${c.first_name}’s birthday is today`) : tr(`Hoy: ${c.years} años de ${c.first_name} en la iglesia`, `Today: ${c.first_name}’s ${c.years} years at church`),
+    })
+  }
+  return (
+    <section aria-label={tr('Pendiente para hoy', 'To do today')} className="flex flex-wrap items-center gap-2.5 no-print">
+      {chips.length === 0
+        ? <span className="inline-flex items-center gap-2.5 min-h-12 px-4 rounded-full bg-good-soft text-good font-semibold"><CircleCheck size={19} aria-hidden />{tr('Todo al día: no hay nada pendiente', 'All caught up: nothing pending')}</span>
+        : chips.map((c) => (
+          <Link key={c.key} to={c.to} className={cx('inline-flex items-center gap-2.5 min-h-12 px-4 rounded-full font-semibold transition-colors', c.warn ? 'bg-warn-soft text-ink hover:brightness-95' : 'bg-surface border border-line hover:border-accent')}>
+            <span className={c.warn ? 'text-warn' : 'text-accent-ink'} aria-hidden>{c.icon}</span>{c.text}<ChevronRight size={17} className="text-muted -mr-1" aria-hidden />
+          </Link>
+        ))}
+    </section>
+  )
+}
+
+/** Four large tabs; arrow keys move between them, as screen-reader users expect. */
+function ViewTabs({ value, onChange, options }: { value: View; onChange: (v: View) => void; options: { value: View; label: string; icon: ReactNode }[] }) {
+  const { tr } = useApp()
+  const move = (dir: number) => {
+    const i = options.findIndex((o) => o.value === value)
+    const next = options[(i + dir + options.length) % options.length].value
+    onChange(next)
+    setTimeout(() => document.getElementById(`tab-${next}`)?.focus())
+  }
+  return (
+    <div role="tablist" aria-label={tr('Secciones del inicio', 'Home sections')} className="grid grid-cols-2 md:grid-cols-4 gap-1.5 p-1.5 rounded-[16px] bg-raised no-print">
+      {options.map((o) => {
+        const on = o.value === value
+        return (
+          <button key={o.value} id={`tab-${o.value}`} type="button" role="tab" aria-selected={on} aria-controls={`panel-${o.value}`} tabIndex={on ? 0 : -1}
+            onClick={() => onChange(o.value)}
+            onKeyDown={(e) => { if (e.key === 'ArrowRight') { e.preventDefault(); move(1) } else if (e.key === 'ArrowLeft') { e.preventDefault(); move(-1) } }}
+            className={cx('min-h-14 rounded-[12px] flex items-center justify-center gap-2.5 text-[1.08rem] transition-colors',
+              on ? 'bg-surface text-ink font-bold shadow-card' : 'text-ink-soft font-semibold hover:text-ink hover:bg-surface/50')}>
+            <span className={on ? 'text-accent-ink' : ''} aria-hidden>{o.icon}</span>{o.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { tr, money, date, num, session, lang } = useApp()
   const labels = useLabels()
   const openOffering = useOfferingForm()
+  const [params, setParams] = useSearchParams()
+  const view = (['resumen', 'dinero', 'personas', 'metas'].includes(params.get('vista') || '') ? params.get('vista') : 'resumen') as View
+  const setView = (v: View) => setParams(v === 'resumen' ? {} : { vista: v }, { replace: true })
   const [year, setYear] = useState<number | undefined>()
-  const [compare, setCompare] = useState<'member' | 'year' | 'method'>('member')
+  const [allNews, setAllNews] = useState(false)
   const { data: d, isPending, error } = useQuery({ queryKey: ['dashboard', year], queryFn: () => api.get<Dash>(`/reports/dashboard${year ? `?year=${year}` : ''}`), placeholderData: (p) => p })
 
   if (isPending) return <Spinner />
@@ -238,191 +311,241 @@ export default function Dashboard() {
     switch (i.type) {
       case 'ytd': return {
         icon: x.pct >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />,
-        text: x.pct >= 0
-          ? <>{tr('Este año las ofrendas van', 'This year giving is')} {b(`${Math.abs(x.pct)}% ${tr('por encima', 'ahead')}`)} {tr(`de la misma fecha de ${x.year} (${money(x.previous, { whole: true })}).`, `of the same date in ${x.year} (${money(x.previous, { whole: true })}).`)}</>
-          : <>{tr('Este año las ofrendas van', 'This year giving is')} {b(`${Math.abs(x.pct)}% ${tr('por debajo', 'behind')}`)} {tr(`de la misma fecha de ${x.year} (${money(x.previous, { whole: true })}).`, `of the same date in ${x.year} (${money(x.previous, { whole: true })}).`)}</>,
+        text: x.pct === 0
+          ? <>{tr('Este año las ofrendas van', 'This year giving is')} {b(tr('igual', 'level'))} {tr(`que a la misma fecha de ${x.year}.`, `with the same date in ${x.year}.`)}</>
+          : x.pct > 0
+            ? <>{tr('Este año las ofrendas van', 'This year giving is')} {b(`${Math.abs(x.pct)}% ${tr('por encima', 'ahead')}`)} {tr(`de la misma fecha de ${x.year} (${money(x.previous, { whole: true })}).`, `of the same date in ${x.year} (${money(x.previous, { whole: true })}).`)}</>
+            : <>{tr('Este año las ofrendas van', 'This year giving is')} {b(`${Math.abs(x.pct)}% ${tr('por debajo', 'behind')}`)} {tr(`de la misma fecha de ${x.year} (${money(x.previous, { whole: true })}).`, `of the same date in ${x.year} (${money(x.previous, { whole: true })}).`)}</>,
       }
       case 'last30': return {
         icon: x.pct >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />,
-        text: <>{tr('En los últimos 30 días entraron', 'In the last 30 days')} {b(money(x.amount, { whole: true }))}{tr(',', ' came in,')} {b(`${Math.abs(x.pct)}% ${x.pct >= 0 ? tr('más', 'more') : tr('menos', 'less')}`)} {tr('que en los 30 días anteriores.', 'than in the 30 days before.')}</>,
+        text: <>{tr('En los últimos 30 días entraron', 'In the last 30 days')} {b(money(x.amount, { whole: true }))}{tr(',', ' came in,')} {b(`${Math.abs(Math.round(x.pct))}% ${x.pct >= 0 ? tr('más', 'more') : tr('menos', 'less')}`)} {tr('que en los 30 días anteriores.', 'than in the 30 days before.')}</>,
       }
       case 'best_month': return { icon: <Star size={20} />, text: <>{b(labels.month(x.month, 'long'))} {tr('fue el mejor mes del año, con', 'was the best month of the year, with')} {b(money(x.amount, { whole: true }))}.</> }
       case 'top_fund': return { icon: <PieChart size={20} />, text: <>{b(x.name)} {tr('representa el', 'makes up')} {b(`${x.share}%`)} {tr('de todo lo recibido este año.', 'of everything received this year.')}</> }
       case 'new_givers': return { icon: <UserPlus size={20} />, text: <>{b(x.count === 1 ? tr('1 persona dio', '1 person gave') : tr(`${x.count} personas dieron`, `${x.count} people gave`))} {tr('por primera vez en los últimos 60 días.', 'for the first time in the last 60 days.')}</> }
       case 'lapsed': return {
-        icon: <UserX size={20} />, to: '/miembros?filtro=sin-ofrendar',
-        text: <>{b(x.count === 1 ? tr('1 miembro que ofrendaba con frecuencia', '1 member who used to give regularly') : tr(`${x.count} miembros que ofrendaban con frecuencia`, `${x.count} members who used to give regularly`))} {tr('no lo hace desde hace más de 60 días', 'has not given in over 60 days')}: {x.names.join(', ')}{x.count > 3 ? '…' : ''}. {tr('Quizá agradezcan una llamada.', 'They might appreciate a call.')}</>,
+        icon: <UserX size={20} />, to: '/?vista=personas',
+        text: <>{b(x.count === 1 ? tr('1 persona que ofrendaba con frecuencia', '1 person who used to give regularly') : tr(`${x.count} personas que ofrendaban con frecuencia`, `${x.count} people who used to give regularly`))} {tr('no lo hacen desde hace más de 60 días. Quizá agradezcan una llamada.', 'have not given in over 60 days. They might appreciate a call.')}</>,
       }
       case 'loose_share': return { icon: <HandCoins size={20} />, text: <>{tr('El', '')} {b(`${x.share}%`)} {tr('de lo recibido son ofrendas sueltas, sin nombre. Repartir sobres ayuda a que más personas reciban su constancia.', 'of what was received is loose offerings with no name. Handing out envelopes helps more people get a statement.')}</> }
       default: return { icon: <Star size={20} />, text: null }
     }
   }
-  const tones = { good: 'bg-good-soft text-good', bad: 'bg-bad-soft text-bad', neutral: 'bg-raised text-ink-soft' }
+  const tones = { good: 'bg-good-soft text-good', bad: 'bg-warn-soft text-warn', neutral: 'bg-raised text-ink-soft' }
+  // The most useful news first: what changed recently, then who needs attention.
+  const order = ['last30', 'lapsed', 'new_givers', 'ytd', 'best_month', 'top_fund', 'loose_share']
+  const insights = [...d.insights].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))
+  const shownNews = allNews ? insights : insights.slice(0, 3)
 
   const shortDate = (iso: string) => {
     const [y, m, dd] = iso.split('-').map(Number)
     return new Date(y, m - 1, dd).toLocaleDateString(lang === 'es' ? 'es-US' : 'en-US', { day: 'numeric', month: 'short' }).replace('.', '')
   }
   const upTo = d.elapsed
-  const months = d.monthly.slice(0, upTo)
+  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
   const weeks = d.weekly.map((w, i) => ({
     label: i === d.weekly.length - 1 && d.isCurrent ? tr('Esta sem.', 'This wk') : shortDate(w.sunday),
     value: w.total,
     tip: `${tr('Semana del domingo', 'Week ending Sunday')} ${shortDate(w.sunday)} · ${tr(`${num(w.count)} ofrendas`, `${num(w.count)} gifts`)}`,
   }))
   const seg = d.segments
-  const actions: { icon: ReactNode; title: string; text: string; onClick?: () => void; to?: string }[] = [
-    { icon: <Plus size={24} />, title: tr('Registrar una ofrenda', 'Record an offering'), text: tr('Un sobre, una transferencia…', 'An envelope, a transfer…'), onClick: () => openOffering() },
-    { icon: <ClipboardList size={24} />, title: tr('Contar el culto de hoy', 'Count today’s service'), text: tr('Todos los sobres de una vez', 'All the envelopes at once'), to: '/conteos?nuevo=1' },
-    { icon: <FileText size={24} />, title: tr('Informe del mes pasado', 'Last month’s report'), text: tr('Listo para la junta', 'Ready for the board'), to: '/informes?preset=mes' },
-    { icon: <Landmark size={24} />, title: tr('Constancias de impuestos', 'Tax statements'), text: tr('Para cada miembro', 'For each member'), to: '/impuestos' },
+  const lapsed = (d.insights.find((i) => i.type === 'lapsed')?.data.members || []) as { id: string; name: string; last_date: string }[]
+  const ytdNote = k.ytdChange == null ? undefined
+    : k.ytdChange === 0 ? tr(`Igual que a esta fecha en ${d.prevLabel}`, `Same as this date in ${d.prevLabel}`)
+      : k.ytdChange > 0 ? tr(`${Math.abs(k.ytdChange)}% más que a esta fecha en ${d.prevLabel}`, `${Math.abs(k.ytdChange)}% more than this date in ${d.prevLabel}`)
+        : tr(`${Math.abs(k.ytdChange)}% menos que a esta fecha en ${d.prevLabel}`, `${Math.abs(k.ytdChange)}% less than this date in ${d.prevLabel}`)
+  const actions: { icon: ReactNode; title: string; onClick?: () => void; to?: string }[] = [
+    { icon: <Plus size={22} />, title: tr('Registrar una ofrenda', 'Record an offering'), onClick: () => openOffering() },
+    { icon: <ClipboardList size={22} />, title: tr('Contar el culto de hoy', 'Count today’s service'), to: '/conteos?nuevo=1' },
+    { icon: <FileText size={22} />, title: tr('Informe del mes pasado', 'Last month’s report'), to: '/informes?preset=mes' },
+    { icon: <Landmark size={22} />, title: tr('Constancias de impuestos', 'Tax statements'), to: '/impuestos' },
+  ]
+  const views: { value: View; label: string; icon: ReactNode }[] = [
+    { value: 'resumen', label: tr('Resumen', 'Summary'), icon: <LayoutDashboard size={21} /> },
+    { value: 'dinero', label: tr('Dinero', 'Money'), icon: <Wallet size={21} /> },
+    { value: 'personas', label: tr('Personas', 'People'), icon: <Users size={21} /> },
+    { value: 'metas', label: tr('Metas', 'Goals'), icon: <Target size={21} /> },
   ]
 
   return (
-    <div className="grid gap-5">
-      <PageHeader title={title} subtitle={`${session!.org.name} · ${d.isCurrent ? date(d.ref, 'long') : d.label}`}>{picker}</PageHeader>
+    <div className="grid gap-6 max-w-[1240px] [&>*]:min-w-0">
+      <PageHeader title={title} subtitle={d.isCurrent ? cap(date(d.ref, 'long')) : tr(`Viendo el año ${d.label}`, `Viewing ${d.label}`)}>{picker}</PageHeader>
 
       <SetupChecklist />
+      <TodayStrip d={d} />
+      <ViewTabs value={view} onChange={setView} options={views} />
 
-      {/* The four things a treasurer does most, one click away. */}
-      <nav aria-label={tr('Accesos rápidos', 'Quick actions')} className="grid grid-cols-2 xl:grid-cols-4 gap-3 -mt-2 no-print">
-        {actions.map((a) => {
-          const inner = (<>
-            <span className="size-12 rounded-[14px] grid place-items-center bg-accent-soft text-accent-ink shrink-0 group-hover:bg-accent group-hover:text-on-accent transition-colors" aria-hidden>{a.icon}</span>
-            <span className="min-w-0 text-left">
-              <span className="block font-semibold leading-snug">{a.title}</span>
-              <span className="block text-muted text-[0.88rem]">{a.text}</span>
-            </span>
-          </>)
-          const cls = 'group card flex items-center gap-4 p-4 hover:border-accent transition-colors'
-          return a.to ? <Link key={a.title} to={a.to} className={cls}>{inner}</Link> : <button key={a.title} type="button" onClick={a.onClick} className={cls}>{inner}</button>
-        })}
-      </nav>
+      {view === 'resumen' && (
+        <div id="panel-resumen" role="tabpanel" aria-labelledby="tab-resumen" className="grid gap-6 [&>*]:min-w-0">
+          <nav aria-label={tr('Accesos rápidos', 'Quick actions')} className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3 no-print">
+            {actions.map((a) => {
+              const inner = (<>
+                <span className="size-11 rounded-[13px] grid place-items-center bg-accent-soft text-accent-ink shrink-0 group-hover:bg-accent group-hover:text-on-accent transition-colors" aria-hidden>{a.icon}</span>
+                <span className="font-semibold leading-snug text-left">{a.title}</span>
+              </>)
+              const cls = 'group card flex items-center gap-3.5 p-4 hover:border-accent transition-colors'
+              return a.to ? <Link key={a.title} to={a.to} className={cls}>{inner}</Link> : <button key={a.title} type="button" onClick={a.onClick} className={cls}>{inner}</button>
+            })}
+          </nav>
 
-      {/* Headline figures, each with its recent trend. */}
-      <section className="card grid sm:grid-cols-2 xl:grid-cols-4 [&>*]:border-line sm:[&>*:nth-child(even)]:border-l xl:[&>*+*]:border-l [&>*+*]:border-t sm:[&>*:nth-child(2)]:border-t-0 xl:[&>*+*]:border-t-0">
-        <Stat label={tr(`Recibido en ${d.label}`, `Received in ${d.label}`)} value={money(k.total, { whole: true })}
-          badge={<Delta value={k.ytdChange} />} note={k.ytdChange != null ? tr(`comparado con la misma fecha de ${d.prevLabel}`, `compared with the same date in ${d.prevLabel}`) : undefined}
-          spark={months.map((m) => m.total)} sparkLabel={tr('Total de cada mes', 'Each month’s total')} />
-        <Stat label={d.isCurrent ? tr(`${monthName}, hasta hoy`, `${monthName} so far`) : monthName} value={money(k.thisMonth, { whole: true })}
-          note={tr(`Mes anterior completo: ${money(k.prevMonth, { whole: true })}`, `Full previous month: ${money(k.prevMonth, { whole: true })}`)}
-          spark={d.weekly.map((w) => w.total)} sparkLabel={tr('Últimas 12 semanas', 'Last 12 weeks')} />
-        <Stat label={tr('Personas que ofrendaron', 'People who gave')} value={num(k.givers)}
-          note={k.giversPrev ? tr(`${k.giversPrev} en todo ${d.prevLabel}`, `${k.giversPrev} in all of ${d.prevLabel}`) : undefined}
-          spark={months.map((m) => m.givers)} sparkLabel={tr('Personas por mes', 'People per month')} />
-        <Stat label={tr('Ofrenda promedio', 'Average gift')} value={money(k.average)} note={tr(`${num(k.count)} ofrendas registradas`, `${num(k.count)} offerings recorded`)}
-          spark={months.map((m) => (m.count ? m.total / m.count : 0))} sparkLabel={tr('Promedio de cada mes', 'Each month’s average')} />
-      </section>
+          <section aria-label={tr('Cifras principales', 'Key figures')} className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {[
+              { label: tr(`Recibido en ${d.label}`, `Received in ${d.label}`), value: money(k.total, { whole: true }), note: ytdNote },
+              { label: d.isCurrent ? tr(`${monthName}, hasta hoy`, `${monthName} so far`) : monthName, value: money(k.thisMonth, { whole: true }), note: tr(`El mes anterior completo: ${money(k.prevMonth, { whole: true })}`, `Full previous month: ${money(k.prevMonth, { whole: true })}`) },
+              { label: tr('Personas que ofrendaron', 'People who gave'), value: num(k.givers), note: k.giversPrev ? (k.givers >= k.giversPrev ? tr(`${k.givers - k.giversPrev} más que en ${d.prevLabel}`, `${k.givers - k.giversPrev} more than in ${d.prevLabel}`) : tr(`${k.giversPrev - k.givers} menos que en ${d.prevLabel}`, `${k.giversPrev - k.givers} fewer than in ${d.prevLabel}`)) : undefined },
+              { label: tr('Ofrenda promedio', 'Average gift'), value: money(k.average, { whole: true }), note: tr(`En ${num(k.count)} ofrendas`, `Across ${num(k.count)} gifts`) },
+            ].map((s) => (
+              <div key={s.label} className="card p-6">
+                <p className="text-ink-soft font-semibold">{s.label}</p>
+                <p className="mt-1 text-[2.3rem] font-bold leading-tight tracking-tight tabular-nums">{s.value}</p>
+                {s.note && <p className="text-ink-soft text-[0.95rem] mt-1">{s.note}</p>}
+              </div>
+            ))}
+          </section>
 
-      {d.finance.tracksExpenses && <FinanceStrip f={d.finance} monthName={monthName} />}
+          {session!.features.ai && k.count > 0 && <AiSummary year={d.year} />}
 
-      {session!.features.ai && k.count > 0 && <AiSummary year={d.year} />}
+          <Card title={tr('Ofrendas de cada mes', 'Offerings each month')} hint={tr(`Compara ${d.label} con ${d.prevLabel}. «Acumulado» muestra cuánto se lleva reunido en el año.`, `Compares ${d.label} with ${d.prevLabel}. “Year to date” shows how much has been gathered so far.`)}>
+            <MonthlyChart year={d.label} prevLabel={d.prevLabel} upTo={d.elapsed} data={d.monthly.map((m) => ({ label: labels.month(m.month), total: m.total, previous: m.previous }))} />
+          </Card>
 
-      <div className="grid xl:grid-cols-3 gap-5">
-        <Card className="xl:col-span-2" title={tr('Ofrendas por mes', 'Offerings by month')} hint={tr('Compara este año con el anterior. «Acumulado» muestra cuánto se lleva reunido en el año.', 'Compare this year with last. “Year to date” shows how much has been gathered so far.')}>
-          <MonthlyChart year={d.label} prevLabel={d.prevLabel} upTo={d.elapsed} data={d.monthly.map((m) => ({ label: labels.month(m.month), total: m.total, previous: m.previous }))} />
-        </Card>
-        <Card title={tr('¿A qué fondos se dio?', 'Which funds received?')} hint={tr(`Total de ${d.label}`, `${d.label} total`)}>
-          <Donut empty={tr('Aún no hay ofrendas este año.', 'No offerings yet this year.')} centerLabel={tr('Total', 'Total')}
-            items={d.byFund.map((f) => ({ key: f.id, label: f.name, value: f.total, color: seriesColor(f.color_slot) }))} />
-        </Card>
-      </div>
+          <Card title={tr('Lo más importante', 'What matters most')} hint={tr('Cambios y tendencias que vale la pena mirar.', 'Changes and trends worth a look.')}>
+            {insights.length === 0 ? <p className="text-muted py-2">{tr('Cuando haya más datos, aquí aparecerán las tendencias.', 'Trends will appear here once there is more data.')}</p> : (<>
+              <ul className="grid">
+                {shownNews.map((i) => {
+                  const t = insightText(i)
+                  const row = (<>
+                    <span className={cx('size-10 rounded-full grid place-items-center shrink-0', tones[i.tone])} aria-hidden>{t.icon}</span>
+                    <span className="flex-1 pt-1.5 leading-snug">{t.text}</span>
+                    {t.to && <ChevronRight size={20} className="text-muted mt-2 shrink-0" aria-hidden />}
+                  </>)
+                  return (
+                    <li key={i.type} className="border-t border-line first:border-t-0 py-3.5">
+                      {t.to ? <Link to={t.to} className="flex gap-3.5 -mx-2 px-2 py-1 rounded-xl hover:bg-raised transition-colors">{row}</Link> : <div className="flex gap-3.5">{row}</div>}
+                    </li>
+                  )
+                })}
+              </ul>
+              {insights.length > 3 && (
+                <Button size="sm" variant="ghost" className="mt-1" onClick={() => setAllNews(!allNews)}>
+                  {allNews ? tr('Ver menos', 'Show less') : tr(`Ver las ${insights.length} novedades`, `See all ${insights.length}`)}
+                </Button>
+              )}
+            </>)}
+          </Card>
+        </div>
+      )}
 
-      <div className="grid xl:grid-cols-2 gap-5">
-        <Card title={tr('Últimas 12 semanas', 'Last 12 weeks')} hint={tr('Lo recibido cada semana. Útil para ver domingos flojos o especiales.', 'What came in each week. Handy for spotting slow or special Sundays.')}>
-          <Columns height="19rem" data={weeks} ghost={d.isCurrent ? weeks[weeks.length - 1]?.label : undefined} tipLabel={tr('Recibido', 'Received')} />
-        </Card>
-        <Card title={tr('Fondos mes a mes', 'Funds month by month')} hint={tr('Cómo se reparte cada mes entre los fondos.', 'How each month splits across funds.')}>
-          <FundStack upTo={upTo} funds={d.byFund} months={d.monthly.map((m) => ({ label: labels.month(m.month), byFund: m.byFund }))} />
-        </Card>
-      </div>
+      {view === 'dinero' && (
+        <div id="panel-dinero" role="tabpanel" aria-labelledby="tab-dinero" className="grid gap-6 [&>*]:min-w-0">
+          {d.finance.tracksExpenses && <FinanceStrip f={d.finance} monthName={lang === 'es' ? monthName.toLowerCase() : monthName} />}
+          <div className="grid lg:grid-cols-2 gap-6 [&>*]:min-w-0">
+            <Card title={tr('¿A qué fondos se dio?', 'Which funds received?')} hint={tr(`Total de ${d.label}`, `${d.label} total`)}>
+              <ShareBars empty={tr('Aún no hay ofrendas este año.', 'No offerings yet this year.')} items={d.byFund.map((f) => ({ key: f.id, label: f.name, value: f.total, color: seriesColor(f.color_slot) }))} />
+            </Card>
+            <Card title={tr('¿Cómo se dio?', 'How was it given?')} hint={tr(`Formas de pago en ${d.label}`, `Payment methods in ${d.label}`)}>
+              <ShareBars empty={tr('Aún no hay ofrendas este año.', 'No offerings yet this year.')}
+                items={METHODS.map((m, i) => ({ key: m, label: labels.method(m), value: d.byMethod.find((x) => x.method === m)?.total || 0, color: seriesColor(i + 1) })).filter((x) => x.value > 0).sort((a, b) => b.value - a.value)} />
+            </Card>
+          </div>
+          <Card title={tr('Las últimas 12 semanas', 'The last 12 weeks')} hint={tr('Lo recibido cada semana. Sirve para ver domingos flojos o especiales.', 'What came in each week. Handy for spotting slow or special Sundays.')}>
+            <Columns height="17rem" data={weeks} ghost={d.isCurrent ? weeks[weeks.length - 1]?.label : undefined} tipLabel={tr('Recibido', 'Received')} />
+          </Card>
+          <div className="grid xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-6 [&>*]:min-w-0">
+            <Card title={tr('Fondos mes a mes', 'Funds month by month')} hint={tr('Cómo se reparte cada mes entre los fondos.', 'How each month splits across funds.')}>
+              <FundStack upTo={upTo} funds={d.byFund} months={d.monthly.map((m) => ({ label: labels.month(m.month), byFund: m.byFund }))} />
+            </Card>
+            <Card title={tr('Cada año', 'Each year')} hint={tr('Total recibido por año.', 'Total received per year.')}>
+              <Columns data={d.yearly.map((y) => ({ label: y.label, value: y.total }))} highlight={d.label} />
+            </Card>
+          </div>
+        </div>
+      )}
 
-      <div className="grid xl:grid-cols-2 gap-5">
-        <Card title={tr('Novedades', 'What’s new')} hint={tr('Cambios y tendencias que vale la pena mirar.', 'Changes and trends worth a look.')}>
-          {d.insights.length === 0 ? <p className="text-muted py-4">{tr('Cuando haya más datos, aquí aparecerán las tendencias.', 'Trends will appear here once there is more data.')}</p> : (
-            <ul className="grid gap-3.5">
-              {d.insights.map((i) => {
-                const t = insightText(i)
-                const row = (<>
-                  <span className={cx('size-10 rounded-full grid place-items-center shrink-0', tones[i.tone])} aria-hidden>{t.icon}</span>
-                  <span className="flex-1 pt-1.5 leading-snug">{t.text}</span>
-                  {t.to && <ChevronRight size={20} className="text-muted mt-2 shrink-0" aria-hidden />}
-                </>)
-                return <li key={i.type}>{t.to ? <Link to={t.to} className="flex gap-3.5 -m-2 p-2 rounded-xl hover:bg-raised transition-colors">{row}</Link> : <div className="flex gap-3.5">{row}</div>}</li>
-              })}
-            </ul>
-          )}
-        </Card>
-        <Card title={tr('Comparativos', 'Comparisons')}
-          action={<Tabs value={compare} onChange={setCompare} options={[{ value: 'member', label: tr('Por miembro', 'By member') }, { value: 'year', label: tr('Por año', 'By year') }, { value: 'method', label: tr('Por método', 'By method') }]} />}>
-          {compare === 'member' && (d.topMembers.length
-            ? <Ranking items={d.topMembers.slice(0, 7).map((m) => ({ key: m.id, label: m.name, value: m.total, avatar: m.avatar_file, showAvatar: true }))} />
-            : <p className="text-muted py-4">{tr('Aún no hay ofrendas con nombre este año.', 'No named offerings yet this year.')}</p>)}
-          {compare === 'year' && <Columns data={d.yearly.map((y) => ({ label: y.label, value: y.total }))} highlight={d.label} />}
-          {compare === 'method' && <Ranking items={d.byMethod.map((m) => ({ key: m.method, label: labels.method(m.method), value: m.total, sub: tr(`${num(m.count)} ofrendas`, `${num(m.count)} gifts`) }))} />}
-        </Card>
-      </div>
-
-      <div className="grid lg:grid-cols-2 2xl:grid-cols-3 gap-5">
-        <Card title={tr('¿Quiénes ofrendan?', 'Who gives?')}
-          hint={tr(`Regulares: dieron en ${seg.regularMonths} meses o más este año. Nuevos: su primera ofrenda fue este año.`, `Regular: gave in ${seg.regularMonths}+ months this year. New: first gift ever was this year.`)}>
-          <Donut format="number" centerLabel={tr('Personas', 'People')} empty={tr('Aún no hay ofrendas con nombre.', 'No named offerings yet.')}
-            items={[
-              { key: 'regular', label: tr('Regulares', 'Regular'), value: seg.regular, color: seriesColor(1) },
-              { key: 'occasional', label: tr('Ocasionales', 'Occasional'), value: seg.occasional, color: seriesColor(2) },
-              { key: 'new', label: tr('Nuevos', 'New'), value: seg.new, color: seriesColor(3) },
-            ].filter((x) => x.value > 0)} />
-        </Card>
-        <Card title={tr('¿Cómo se dio?', 'How was it given?')} hint={tr(`Formas de pago en ${d.label}`, `Payment methods in ${d.label}`)}>
-          <Donut centerLabel={tr('Total', 'Total')} empty={tr('Aún no hay ofrendas este año.', 'No offerings yet this year.')}
-            items={METHODS.map((m, i) => ({ key: m, label: labels.method(m), value: d.byMethod.find((x) => x.method === m)?.total || 0, color: seriesColor(i + 1) })).filter((x) => x.value > 0)} />
-        </Card>
-        <Card className="lg:col-span-2 2xl:col-span-1" title={tr('Metas', 'Goals')} action={<Link to="/metas" className="text-accent-ink font-semibold hover:underline underline-offset-4">{tr('Ver todas', 'See all')}</Link>}>
-          {d.goals.length === 0 ? (
-            <div>
-              <p className="text-muted">{tr('Pon una meta —un techo nuevo, un viaje misionero— y sigue su avance aquí.', 'Set a goal — a new roof, a mission trip — and follow its progress here.')}</p>
-              <Link to="/metas" className="inline-block mt-4"><Button>{tr('Crear una meta', 'Create a goal')}</Button></Link>
-            </div>
-          ) : (
-            <ul className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-1">
-              {d.goals.map((g) => (
-                <li key={g.id} className="flex items-center gap-4">
-                  <Ring value={g.raised} target={g.target_amount} label={g.name} />
-                  <div className="min-w-0">
-                    <p className="font-semibold truncate">{g.name}</p>
-                    <p className="text-ink-soft">{money(g.raised, { whole: true })} <span className="text-muted">{tr('de', 'of')} {money(g.target_amount, { whole: true })}</span></p>
-                    <p className="text-muted text-[0.87rem]">{g.raised >= g.target_amount ? tr('¡Meta lograda!', 'Goal reached!') : `${tr('Faltan', 'To go:')} ${money(g.target_amount - g.raised, { whole: true })} · ${tr('hasta el', 'until')} ${date(g.end_date)}`}</p>
+      {view === 'personas' && (
+        <div id="panel-personas" role="tabpanel" aria-labelledby="tab-personas" className="grid lg:grid-cols-2 gap-6 [&>*]:min-w-0 items-start">
+          <div className="grid gap-6 [&>*]:min-w-0">
+          <Card title={tr(`¿Quiénes ofrendan en ${d.label}?`, `Who gives in ${d.label}?`)}
+            hint={tr(`Regulares: dieron en ${seg.regularMonths} meses o más. Nuevos: su primera ofrenda fue este año.`, `Regular: gave in ${seg.regularMonths}+ months. New: first gift ever was this year.`)}>
+            <dl className="grid grid-cols-3 gap-3 text-center">
+              {[[tr('Regulares', 'Regular'), seg.regular], [tr('Ocasionales', 'Occasional'), seg.occasional], [tr('Nuevos', 'New'), seg.new]].map(([l, v]) => (
+                <div key={l as string} className="rounded-[14px] bg-raised py-4 px-2 flex flex-col">
+                  <dt className="text-ink-soft order-2">{l}</dt>
+                  <dd className="text-[2.1rem] font-bold leading-tight">{num(v as number)}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+          <Card title={tr('Quizá agradezcan una llamada', 'They might appreciate a call')} hint={tr('Ofrendaban con frecuencia y no lo hacen desde hace más de 60 días.', 'They used to give regularly and have not in over 60 days.')}>
+            {lapsed.length === 0 ? <p className="text-muted py-2">{tr('Nadie por ahora. ¡Bien!', 'No one right now. Good!')}</p> : (
+              <ul className="grid">
+                {lapsed.map((m) => (
+                  <li key={m.id} className="flex items-center justify-between gap-3 py-3 border-t border-line first:border-t-0">
+                    <span><Link to={`/miembros/${m.id}`} className="font-medium hover:underline underline-offset-4">{m.name}</Link><span className="block text-muted text-[0.9rem]">{tr('Última ofrenda', 'Last gift')}: {date(m.last_date)}</span></span>
+                    <Link to={`/miembros/${m.id}`} className="shrink-0"><Button size="sm" icon={<Phone size={16} />}>{tr('Ver contacto', 'See contact')}</Button></Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+          </div>
+          <div className="grid gap-6 [&>*]:min-w-0">
+          <Card title={tr('Quienes más han dado', 'Top givers')} hint={tr(`Total de ${d.label}`, `${d.label} total`)}>
+            {d.topMembers.length
+              ? <Ranking items={d.topMembers.slice(0, 7).map((m) => ({ key: m.id, label: m.name, value: m.total, avatar: m.avatar_file, showAvatar: true }))} />
+              : <p className="text-muted py-2">{tr('Aún no hay ofrendas con nombre este año.', 'No named offerings yet this year.')}</p>}
+          </Card>
+          <Celebrations items={d.celebrations} />
+          </div>
+          <Card pad={false} className="lg:col-span-2" title={tr('Últimas ofrendas', 'Latest offerings')}
+            action={<Link to="/ofrendas" className="text-accent-ink font-semibold hover:underline underline-offset-4">{tr('Ver todas', 'See all')}</Link>}>
+            <ul className="mt-3 border-t border-line grid lg:grid-cols-2 lg:[&>li:nth-child(odd)]:border-r [&>li]:border-line [&>li]:border-b">
+              {d.recent.map((o) => (
+                <li key={o.id} className="flex items-center gap-3.5 px-5 sm:px-6 py-3">
+                  <Avatar name={o.member_name || '·'} file={o.member_avatar} size={42} />
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate font-medium">{o.member_name || <span className="text-ink-soft">{labels.loose}</span>}</p>
+                    <p className="text-muted text-[0.9rem]">{o.fund_name} · {labels.method(o.method)} · {date(o.date)}</p>
                   </div>
+                  <p className="font-semibold tabular-nums">{money(o.amount)}</p>
                 </li>
               ))}
             </ul>
-          )}
-        </Card>
-      </div>
+          </Card>
+        </div>
+      )}
 
-      <div className="grid xl:grid-cols-3 gap-5 items-start">
-      <Celebrations items={d.celebrations} />
-      <Card pad={false} className="xl:col-span-2" title={tr('Últimas ofrendas', 'Latest offerings')}
-        action={<Link to="/ofrendas" className="text-accent-ink font-semibold hover:underline underline-offset-4">{tr('Ver todas', 'See all')}</Link>}>
-        <ul className="mt-3 border-t border-line grid lg:grid-cols-2 lg:[&>li:nth-child(odd)]:border-r [&>li]:border-line [&>li]:border-b">
-          {d.recent.map((o) => (
-            <li key={o.id} className="flex items-center gap-3.5 px-5 sm:px-6 py-3">
-              <Avatar name={o.member_name || '·'} file={o.member_avatar} size={42} />
-              <div className="flex-1 min-w-0">
-                <p className="truncate font-medium">{o.member_name || <span className="text-ink-soft">{labels.loose}</span>}</p>
-                <p className="text-muted text-[0.87rem] flex items-center gap-2">
-                  <span className="size-2 rounded-full" style={{ background: seriesColor(o.fund_color) }} aria-hidden />{o.fund_name} · {labels.method(o.method)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold">{money(o.amount)}</p>
-                <p className="text-muted text-[0.87rem]">{date(o.date)}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Card>
-      </div>
+      {view === 'metas' && (
+        <div id="panel-metas" role="tabpanel" aria-labelledby="tab-metas" className="grid gap-6 [&>*]:min-w-0">
+          {d.goals.length === 0 ? (
+            <Card>
+              <Empty icon={<Target size={28} />} title={tr('Todavía no hay metas', 'No goals yet')} action={<Link to="/metas"><Button variant="primary">{tr('Crear una meta', 'Create a goal')}</Button></Link>}>
+                {tr('Pon una meta —un techo nuevo, un viaje misionero— y sigue su avance aquí.', 'Set a goal — a new roof, a mission trip — and follow its progress here.')}
+              </Empty>
+            </Card>
+          ) : (<>
+            <div className="grid lg:grid-cols-2 gap-6 [&>*]:min-w-0">
+              {d.goals.map((g) => {
+                const pct = Math.round((g.raised / (g.target_amount || 1)) * 100)
+                const left = Math.max(g.target_amount - g.raised, 0)
+                return (
+                  <section key={g.id} className="card p-6 sm:p-7 flex items-center gap-6">
+                    <Ring value={g.raised} target={g.target_amount} label={g.name} size={112} />
+                    <div className="min-w-0 grid gap-1">
+                      <h2 className="font-semibold text-[1.2rem] leading-snug">{g.name}</h2>
+                      <p className="text-[1.8rem] font-bold leading-tight tabular-nums">{money(g.raised, { whole: true })} <span className="text-muted text-[1.05rem] font-medium">{tr('de', 'of')} {money(g.target_amount, { whole: true })}</span></p>
+                      <p className="text-ink-soft">{pct >= 100 ? tr('¡Meta lograda!', 'Goal reached!') : tr(`Faltan ${money(left, { whole: true })} hasta el ${date(g.end_date)}.`, `${money(left, { whole: true })} to go until ${date(g.end_date)}.`)}</p>
+                      {g.pledged > 0 && <p className="text-muted text-[0.95rem]">{tr(`${num(g.pledge_count)} compromisos por ${money(g.pledged, { whole: true })}`, `${num(g.pledge_count)} pledges for ${money(g.pledged, { whole: true })}`)}</p>}
+                    </div>
+                  </section>
+                )
+              })}
+            </div>
+            <div><Link to="/metas"><Button icon={<Target size={18} />}>{tr('Ver y editar todas las metas', 'See and edit all goals')}</Button></Link></div>
+          </>)}
+        </div>
+      )}
     </div>
   )
 }

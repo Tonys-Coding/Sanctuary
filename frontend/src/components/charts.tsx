@@ -254,7 +254,7 @@ export function Ranking({ items }: { items: { key: string; label: string; value:
           <div className="flex-1 min-w-0">
             <div className="flex justify-between gap-3 items-baseline">
               <span className="truncate">{i.label}{i.sub && <span className="text-muted text-[0.85rem]"> · {i.sub}</span>}</span>
-              <span className="font-semibold whitespace-nowrap">{money(i.value)}</span>
+              <span className="font-semibold whitespace-nowrap">{money(i.value, { whole: true })}</span>
             </div>
             <div className="mt-1 h-2 rounded-full bg-raised overflow-hidden">
               <div className="h-full rounded-full" style={{ width: `${Math.max((i.value / max) * 100, 1.5)}%`, background: 'var(--chart-main)' }} />
