@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
-import { ChevronDown, ClipboardList, CloudOff, DatabaseBackup, Link2, PiggyBank, Receipt, Scale, Upload, FileText, HandCoins, Landmark, MessageSquareText, Pencil, PlayCircle, Sparkles, UserPlus, Users } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { BookOpen, ChevronDown, ListChecks, Search, ClipboardList, CloudOff, DatabaseBackup, Link2, PiggyBank, Receipt, Scale, Upload, FileText, HandCoins, Landmark, MessageSquareText, Pencil, PlayCircle, Sparkles, UserPlus, Users } from 'lucide-react'
 import { useApp } from '../lib/app'
 import { Button, Card, PageHeader, cx } from '../components/ui'
+import { ViewTabs } from '../components/ViewTabs'
 
 interface Guide { id: string; icon: ReactNode; title: string; when: string; steps: ReactNode[]; to?: string; cta?: string }
 
@@ -18,8 +19,7 @@ function Videos() {
     { id: 'constancias', title: tr('Cómo sacar las constancias de impuestos', 'How to get the tax statements'), text: tr('Revisar lo que falta y descargar una o todas.', 'Check what is missing and download one or all.'), length: '0:41' },
   ]
   return (
-    <section aria-labelledby="videos" className="mb-6">
-      <h2 id="videos" className="font-semibold text-[1.15rem] mb-3 flex items-center gap-2"><PlayCircle size={22} className="text-accent-ink" aria-hidden />{tr('Videotutoriales', 'Video tutorials')}</h2>
+    <section aria-label={tr('Videotutoriales', 'Video tutorials')}>
       <div className="grid md:grid-cols-2 2xl:grid-cols-3 gap-5">
         {videos.map((v) => (
           <article key={v.id} className="card overflow-hidden">
@@ -28,7 +28,7 @@ function Videos() {
               <source src={`/tutorials/${v.id}.${lang}.mp4`} type="video/mp4" />
             </video>
             <div className="p-5">
-              <h3 className="font-semibold text-[1.08rem] flex items-baseline justify-between gap-3">{v.title}<span className="text-muted text-[0.85rem] font-normal shrink-0">{v.length}</span></h3>
+              <h2 className="font-semibold text-[1.08rem] flex items-baseline justify-between gap-3">{v.title}<span className="text-muted text-[0.85rem] font-normal shrink-0">{v.length}</span></h2>
               <p className="text-muted">{v.text}</p>
             </div>
           </article>
@@ -69,6 +69,10 @@ function GuideItem({ g, open, onToggle }: { g: Guide; open: boolean; onToggle: (
 export default function Help() {
   const { tr, session } = useApp()
   const [open, setOpen] = useState<string | null>('domingo')
+  const [query, setQuery] = useState('')
+  const [params, setParams] = useSearchParams()
+  const view = (['guias', 'videos', 'palabras'].includes(params.get('vista') || '') ? params.get('vista') : 'guias') as 'guias' | 'videos' | 'palabras'
+  const setView = (v: typeof view) => setParams(v === 'guias' ? {} : { vista: v }, { replace: true })
   const b = (s: string) => <strong className="font-semibold">{s}</strong>
 
   const guides: Guide[] = [
@@ -247,25 +251,49 @@ export default function Help() {
     [tr('Deducible', 'Deductible'), tr('Lo que se puede restar de los impuestos. Una venta de comida, por ejemplo, no lo es.', 'What can be subtracted on taxes. A food sale, for example, is not.')],
   ]
 
+  const n = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const shown = query.trim() ? guides.filter((g) => n(`${g.title} ${g.when}`).includes(n(query.trim()))) : guides
+
   return (
     <>
-      <PageHeader title={tr('Ayuda', 'Help')} subtitle={tr('Guías cortas, paso a paso, para lo que haces en la tesorería. Toca una para abrirla.', 'Short step-by-step guides for what you do in the treasury. Tap one to open it.')} />
-      <Videos />
-      <h2 className="font-semibold text-[1.15rem] mb-3">{tr('Guías paso a paso', 'Step-by-step guides')}</h2>
-      <div className="grid 2xl:grid-cols-[minmax(0,1fr)_24rem] gap-5 items-start">
-        <ul className="grid gap-3">
-          {guides.map((g) => <GuideItem key={g.id} g={g} open={open === g.id} onToggle={() => setOpen(open === g.id ? null : g.id)} />)}
-        </ul>
-        <Card title={tr('Palabras que verás', 'Words you will see')}>
-          <dl className="grid gap-4">
-            {words.map(([w, d]) => (
-              <div key={w}>
-                <dt className="font-semibold">{w}</dt>
-                <dd className="text-ink-soft">{d}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
+      <PageHeader title={tr('Ayuda', 'Help')} subtitle={tr('Guías cortas para cada tarea de la tesorería, videos y las palabras que verás.', 'Short guides for each treasury task, videos and the words you will see.')} />
+      <div className="grid gap-6 [&>*]:min-w-0">
+        <ViewTabs value={view} onChange={setView} label={tr('Secciones de ayuda', 'Help sections')} options={[
+          { value: 'guias', label: tr('Paso a paso', 'Step by step'), icon: <ListChecks size={21} /> },
+          { value: 'videos', label: tr('Videos', 'Videos'), icon: <PlayCircle size={21} /> },
+          { value: 'palabras', label: tr('Palabras', 'Words'), icon: <BookOpen size={21} /> },
+        ]} />
+
+        {view === 'guias' && (
+          <div id="panel-guias" role="tabpanel" aria-labelledby="tab-guias" className="grid gap-4 max-w-4xl">
+            <div className="relative max-w-xl">
+              <Search size={19} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" aria-hidden />
+              <input className="ctl !pl-11" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr('¿Qué quieres hacer? Ej.: banco, constancia, error…', 'What do you want to do? E.g. bank, statement, mistake…')} aria-label={tr('Buscar una guía', 'Find a guide')} />
+            </div>
+            {shown.length === 0 ? <p className="text-ink-soft">{tr('No hay una guía con esas palabras. Prueba con otra o pregúntale al asistente.', 'No guide with those words. Try another or ask the assistant.')}</p> : (
+              <ul className="grid gap-3">
+                {shown.map((g) => <GuideItem key={g.id} g={g} open={open === g.id || (!!query.trim() && shown.length === 1)} onToggle={() => setOpen(open === g.id ? null : g.id)} />)}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {view === 'videos' && <div id="panel-videos" role="tabpanel" aria-labelledby="tab-videos"><Videos /></div>}
+
+        {view === 'palabras' && (
+          <div id="panel-palabras" role="tabpanel" aria-labelledby="tab-palabras">
+            <Card className="max-w-3xl" title={tr('Palabras que verás', 'Words you will see')}>
+              <dl className="grid gap-5">
+                {words.map(([w, d]) => (
+                  <div key={w}>
+                    <dt className="font-semibold text-[1.05rem]">{w}</dt>
+                    <dd className="text-ink-soft">{d}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Card>
+          </div>
+        )}
       </div>
     </>
   )

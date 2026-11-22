@@ -87,15 +87,15 @@ export default function Deposits() {
         ) : (
           <div className="overflow-x-auto relative mt-3 border-t border-line">
             <table className="w-full">
-              <thead><tr className="border-b border-line"><Th>{tr('Fecha', 'Date')}</Th><Th>{tr('Estado', 'Status')}</Th><Th>{tr('Referencia', 'Reference')}</Th><Th right>{tr('Efectivo', 'Cash')}</Th><Th right>{tr('Cheques', 'Checks')}</Th><Th right>Total</Th><Th right>{tr('Banco', 'Bank')}</Th></tr></thead>
+              <thead><tr className="border-b border-line"><Th>{tr('Fecha', 'Date')}</Th><Th>{tr('Estado', 'Status')}</Th><Th className="hidden xl:table-cell">{tr('Referencia', 'Reference')}</Th><Th right className="hidden xl:table-cell">{tr('Efectivo', 'Cash')}</Th><Th right className="hidden xl:table-cell">{tr('Cheques', 'Checks')}</Th><Th right>Total</Th><Th right>{tr('Banco', 'Bank')}</Th></tr></thead>
               <tbody>
                 {data.deposits.map((d) => (
                   <tr key={d.id} className="border-b border-line last:border-0 hover:bg-raised/50 cursor-pointer" onClick={() => setOpen(d.id)}>
                     <Td><button type="button" className="font-medium hover:underline underline-offset-4" onClick={(e) => { e.stopPropagation(); setOpen(d.id) }}>{date(d.date)}</button></Td>
                     <Td><Badge tone={tone(d.status)}>{statusLabel(d.status)}</Badge></Td>
-                    <Td className="text-ink-soft">{[d.account, d.reference].filter(Boolean).join(' · ') || '—'}</Td>
-                    <Td right>{money(d.cash)}</Td>
-                    <Td right>{money(d.checks)}{d.check_count ? <span className="text-muted text-[0.85rem]"> ({d.check_count})</span> : null}</Td>
+                    <Td className="hidden xl:table-cell text-ink-soft">{[d.account, d.reference].filter(Boolean).join(' · ') || '—'}</Td>
+                    <Td right className="hidden xl:table-cell">{money(d.cash)}</Td>
+                    <Td right className="hidden xl:table-cell">{money(d.checks)}{d.check_count ? <span className="text-muted text-[0.85rem]"> ({d.check_count})</span> : null}</Td>
                     <Td right className="font-semibold">{money(d.total)}</Td>
                     <Td right className={cx(d.bank_amount != null && Math.abs(d.bank_amount - d.total) >= 0.005 && 'text-bad font-semibold')}>{d.bank_amount != null ? money(d.bank_amount) : '—'}</Td>
                   </tr>

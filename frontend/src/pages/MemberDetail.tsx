@@ -83,7 +83,7 @@ export default function MemberDetail() {
       : tr(`, un ${pctText}% menos que el año pasado`, `, ${pctText}% less than last year`)
 
   return (
-    <div className="grid gap-6 max-w-[1240px] [&>*]:min-w-0">
+    <div className="grid gap-6 [&>*]:min-w-0">
       <Link to="/miembros" className="inline-flex items-center gap-2 text-ink-soft hover:text-ink w-fit no-print"><ArrowLeft size={18} />{tr('Miembros', 'Members')}</Link>
 
       <section className="card p-5 sm:p-7 grid gap-6">

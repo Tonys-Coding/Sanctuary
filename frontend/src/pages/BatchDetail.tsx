@@ -164,7 +164,7 @@ export default function BatchDetail() {
           <Button icon={<Printer size={18} />} onClick={() => window.print()}>{tr('Imprimir hoja', 'Print sheet')}</Button>
           {closed
             ? <Button icon={<LockOpen size={18} />} disabled={deposited} title={deposited ? tr('Ya se depositó en el banco', 'Already deposited at the bank') : undefined} onClick={() => setReopening(true)}>{tr('Reabrir conteo', 'Reopen count')}</Button>
-            : <Button variant="primary" icon={<Lock size={18} />} onClick={close} disabled={rows.length === 0}>{tr('Cerrar conteo', 'Close count')}</Button>}
+            : null}
           {!closed && <Button variant="ghost" icon={<Trash2 size={18} />} onClick={remove}>{tr('Eliminar', 'Delete')}</Button>}
         </div>
       </header>
@@ -191,7 +191,7 @@ export default function BatchDetail() {
       <div className="grid xl:grid-cols-[minmax(0,1fr)_360px] gap-5 items-start">
         <div className="grid gap-5">
           {!closed && (
-            <Card title={tr('Agregar ofrenda', 'Add an offering')} hint={tr('Escribe el nombre o el número de sobre, el monto y presiona Enter.', 'Type the name or envelope number, the amount, and press Enter.')}
+            <Card title={tr('1. Anotar las ofrendas', '1. Enter the offerings')} hint={tr('Escribe el nombre o el número de sobre, el monto y presiona Enter. Sin nombre = ofrenda suelta.', 'Type the name or envelope number, the amount, and press Enter. No name = loose offering.')}
               action={session!.features.ai && <div className="flex flex-wrap gap-2">
                 <Button size="sm" icon={<Camera size={16} />} onClick={() => { setAiMode('photo'); setAiOpen(true); setAiRows(null); setAiError(null) }}>{tr('Leer una foto', 'Read a photo')}</Button>
                 <Button size="sm" icon={<Sparkles size={16} />} onClick={() => { setAiMode('text'); setAiOpen(true); setAiRows(null); setAiError(null) }}>{tr('Dictar o pegar notas', 'Dictate or paste notes')}</Button>
@@ -219,15 +219,15 @@ export default function BatchDetail() {
         <div className="grid gap-5">
           <Card title={tr('Total del conteo', 'Count total')}>
             <p className="text-[2.1rem] font-bold leading-none tracking-tight">{money(batch.total)}</p>
-            <dl className="mt-5 grid gap-1.5">
+            {rows.length > 0 && <dl className="mt-5 grid gap-1.5">
               <dt className="text-muted text-[0.8rem] font-semibold uppercase tracking-wide">{tr('Por método', 'By method')}</dt>
               {group((o) => o.method).map(([k, v]) => <dd key={k} className="flex justify-between"><span>{labels.method(k)}</span><span className="font-semibold">{money(v)}</span></dd>)}
               <dt className="text-muted text-[0.8rem] font-semibold uppercase tracking-wide mt-3">{tr('Por fondo', 'By fund')}</dt>
               {group((o) => o.fund_name).map(([k, v]) => <dd key={k} className="flex justify-between"><span>{k}</span><span className="font-semibold">{money(v)}</span></dd>)}
-            </dl>
+            </dl>}
           </Card>
 
-          <Card title={tr('Cuadre de efectivo', 'Cash check')} hint={tr('Cuenta los billetes y monedas para confirmar que coinciden con lo anotado.', 'Count the bills and coins to confirm they match what was entered.')}>
+          <Card title={closed ? tr('Cuadre de efectivo', 'Cash check') : tr('2. Contar el efectivo', '2. Count the cash')} hint={tr('Cuenta los billetes y monedas para confirmar que coinciden con lo anotado.', 'Count the bills and coins to confirm they match what was entered.')}>
             <div className="grid gap-2">{BILLS.map(denInput)}</div>
             <details className="mt-3" open={COINS.some((c) => Number(den[c]) > 0)}>
               <summary className="text-accent-ink font-semibold py-1.5 no-print">{tr('Monedas', 'Coins')}</summary>
@@ -242,6 +242,21 @@ export default function BatchDetail() {
               : <p className="mt-3 flex items-start gap-2 rounded-[11px] bg-warn-soft text-warn px-3.5 py-2.5 font-semibold"><TriangleAlert size={19} className="mt-0.5 shrink-0" />{diff > 0 ? tr(`Sobran ${money(diff)}: ¿falta anotar alguna ofrenda?`, `${money(diff)} over: is an offering missing?`) : tr(`Faltan ${money(-diff)}: revisa los montos anotados.`, `${money(-diff)} short: check the amounts entered.`)}</p>)}
             {denDirty && !closed && <Button className="mt-3 w-full no-print" onClick={() => save({}, tr('Cuadre guardado', 'Cash check saved'))}>{tr('Guardar cuadre', 'Save cash check')}</Button>}
           </Card>
+          {!closed && (
+            <Card className="no-print" title={tr('3. Cerrar el conteo', '3. Close the count')}
+              hint={tr('Cuando todo esté anotado y contado. Imprime la hoja para que firmen quienes contaron; después, el conteo queda protegido y listo para el banco.', 'When everything is entered and counted. Print the sheet for the counters to sign; after that the count is protected and ready for the bank.')}>
+              <p className={cx('mb-3 font-semibold', !hasCount ? 'text-ink-soft' : diff === 0 ? 'text-good' : 'text-warn')}>
+                {rows.length === 0 ? tr('Todavía no hay ofrendas anotadas.', 'No offerings entered yet.')
+                  : !hasCount ? tr('Falta contar el efectivo (paso 2).', 'The cash has not been counted yet (step 2).')
+                    : diff === 0 ? tr('El efectivo cuadra. Puedes cerrar.', 'The cash balances. You can close.')
+                      : tr('El efectivo no cuadra todavía. Revisa antes de cerrar.', 'The cash does not balance yet. Check before closing.')}
+              </p>
+              <div className="grid gap-2.5">
+                <Button icon={<Printer size={18} />} onClick={() => window.print()}>{tr('Imprimir hoja para firmar', 'Print sheet to sign')}</Button>
+                <Button variant="primary" icon={<Lock size={18} />} onClick={close} disabled={rows.length === 0}>{tr('Cerrar conteo', 'Close count')}</Button>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 

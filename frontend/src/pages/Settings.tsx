@@ -657,14 +657,15 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader title={tr('Configuración', 'Settings')} subtitle={tr('Elige una sección. Los cambios se guardan con el botón de cada sección.', 'Choose a section. Changes are saved with each section’s button.')} />
-      <div className="flex flex-wrap gap-8 items-start">
-        <label className="lg:hidden w-full grid gap-1.5 no-print">
+      <div className="@container">
+      <div className="grid gap-6 @4xl:grid-cols-[17rem_minmax(0,1fr)] @4xl:gap-8 items-start">
+        <label className="@4xl:hidden grid gap-1.5 max-w-md no-print">
           <span className="font-semibold">{tr('Sección', 'Section')}</span>
           <select className="ctl" value={tab} onChange={(e) => setParams({ tab: e.target.value }, { replace: true })}>
             {sections.map((g) => <optgroup key={g.title} label={g.title}>{g.items.map((it) => <option key={it.value} value={it.value}>{it.label}</option>)}</optgroup>)}
           </select>
         </label>
-        <nav aria-label={tr('Secciones de configuración', 'Settings sections')} className="hidden lg:grid flex-[1_1_17rem] max-w-[20rem] gap-5 no-print">
+        <nav aria-label={tr('Secciones de configuración', 'Settings sections')} className="hidden @4xl:grid gap-5 no-print">
           {sections.map((g) => (
             <div key={g.title}>
               <p className="px-3 mb-1.5 text-[0.8rem] font-semibold tracking-[0.08em] uppercase text-ink-soft">{g.title}</p>
@@ -688,7 +689,7 @@ export default function SettingsPage() {
             </div>
           ))}
         </nav>
-        <section aria-labelledby="seccion" className="flex-[999_1_34rem] min-w-0">
+        <section aria-labelledby="seccion" className="min-w-0">
           <h2 id="seccion" className="font-display text-[1.55rem] leading-tight">{current.label}</h2>
           <p className="text-ink-soft mt-1 mb-5">{current.text}</p>
           {tab === 'iglesia' && <ChurchTab />}
@@ -701,6 +702,7 @@ export default function SettingsPage() {
           {tab === 'respaldo' && <BackupTab />}
           {tab === 'sistema' && <SystemTab />}
         </section>
+      </div>
       </div>
     </>
   )

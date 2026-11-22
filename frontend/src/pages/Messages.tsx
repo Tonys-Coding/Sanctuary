@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { Cake, CalendarClock, MessageSquareText, Send, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import type { SmsMessage } from '../lib/types'
 import { Avatar, Badge, Button, Card, Empty, ErrorNote, PageHeader, Spinner, useFeedback } from '../components/ui'
 import { SmsComposer } from '../components/SmsComposer'
+import { ViewTabs } from '../components/ViewTabs'
 
 interface Data { enabled: boolean; countryCode: string; birthday: { enabled: boolean; message: string }; messages: SmsMessage[] }
 
@@ -63,6 +65,11 @@ export default function Messages() {
   const { fail } = useFeedback()
   const [composing, setComposing] = useState(false)
   const { data, isPending, error } = useQuery({ queryKey: ['messages'], queryFn: () => api.get<Data>('/messages') })
+  const [params, setParams] = useSearchParams()
+  const view = (['enviados', 'programados', 'cumpleanos'].includes(params.get('vista') || '') ? params.get('vista') : 'enviados') as 'enviados' | 'programados' | 'cumpleanos'
+  const setView = (v: typeof view) => setParams(v === 'enviados' ? {} : { vista: v }, { replace: true })
+  const [monthAgo] = useState(() => Date.now() - 30 * 864e5)
+  const sentMonth = (data?.messages || []).filter((m) => m.status === 'sent' && new Date(m.sent_at || m.send_at).getTime() >= monthAgo).length
 
   const when = (iso: string) => new Date(iso).toLocaleString(lang === 'es' ? 'es-US' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
   const statusBadge = (st: SmsMessage['status']) => ({
@@ -142,16 +149,36 @@ export default function Messages() {
         {data?.enabled && <Button variant="primary" icon={<Send size={19} />} onClick={() => setComposing(true)}>{tr('Nuevo mensaje', 'New message')}</Button>}
       </PageHeader>
       {isPending ? <Spinner /> : error ? <ErrorNote error={error} /> : !data!.enabled ? <Setup /> : (
-        <div className="grid 2xl:grid-cols-[minmax(0,1fr)_28rem] gap-5 items-start">
-          <div className="grid gap-5">
-            <Card pad={false} title={tr(`Programados (${scheduled.length})`, `Scheduled (${scheduled.length})`)} hint={tr('Se enviarán solos a la hora indicada.', 'They will go out on their own at the set time.')}>
-              {scheduled.length === 0 ? <p className="text-muted px-5 sm:px-6 py-4">{tr('No hay mensajes programados.', 'No scheduled messages.')}</p> : <ul className="mt-3 border-t border-line divide-y divide-line">{scheduled.map(row)}</ul>}
-            </Card>
-            <Card pad={false} title={tr('Enviados en los últimos 90 días', 'Sent in the last 90 days')}>
-              {history.length === 0 ? <Empty icon={<MessageSquareText size={28} />} title={tr('Todavía no se ha enviado ningún mensaje', 'No messages sent yet')} /> : <ul className="mt-3 border-t border-line divide-y divide-line">{history.map(row)}</ul>}
-            </Card>
-          </div>
-          <BirthdayCard data={data!.birthday} />
+        <div className="grid gap-6 [&>*]:min-w-0">
+          <p className="text-[1.1rem] text-ink-soft max-w-[70ch]">
+            {tr(`En los últimos 30 días se enviaron ${sentMonth} mensajes.`, `${sentMonth} messages were sent in the last 30 days.`)}{' '}
+            {scheduled.length > 0 && tr(`Hay ${scheduled.length} ${scheduled.length === 1 ? 'envío programado' : 'envíos programados'}.`, `${scheduled.length} ${scheduled.length === 1 ? 'send is' : 'sends are'} scheduled.`)}{' '}
+            {data!.birthday.enabled ? tr('Las felicitaciones de cumpleaños salen solas cada mañana.', 'Birthday greetings go out on their own every morning.') : tr('Las felicitaciones de cumpleaños automáticas están apagadas.', 'Automatic birthday greetings are off.')}
+          </p>
+          <ViewTabs value={view} onChange={setView} label={tr('Secciones de mensajes', 'Message sections')} options={[
+            { value: 'enviados', label: tr('Enviados', 'Sent'), icon: <Send size={20} /> },
+            { value: 'programados', label: tr(`Programados (${scheduled.length})`, `Scheduled (${scheduled.length})`), icon: <CalendarClock size={20} /> },
+            { value: 'cumpleanos', label: tr('Cumpleaños', 'Birthdays'), icon: <Cake size={20} /> },
+          ]} />
+          {view === 'enviados' && (
+            <div id="panel-enviados" role="tabpanel" aria-labelledby="tab-enviados">
+              <Card pad={false} title={tr('Enviados en los últimos 90 días', 'Sent in the last 90 days')}>
+                {history.length === 0 ? <Empty icon={<MessageSquareText size={28} />} title={tr('Todavía no se ha enviado ningún mensaje', 'No messages sent yet')} /> : <ul className="mt-3 border-t border-line divide-y divide-line">{history.map(row)}</ul>}
+              </Card>
+            </div>
+          )}
+          {view === 'programados' && (
+            <div id="panel-programados" role="tabpanel" aria-labelledby="tab-programados">
+              <Card pad={false} title={tr('Programados', 'Scheduled')} hint={tr('Se enviarán solos a la hora indicada. Puedes cancelarlos antes.', 'They go out on their own at the set time. You can cancel them before.')}>
+                {scheduled.length === 0 ? <p className="text-muted px-5 sm:px-6 py-4">{tr('No hay mensajes programados.', 'No scheduled messages.')}</p> : <ul className="mt-3 border-t border-line divide-y divide-line">{scheduled.map(row)}</ul>}
+              </Card>
+            </div>
+          )}
+          {view === 'cumpleanos' && (
+            <div id="panel-cumpleanos" role="tabpanel" aria-labelledby="tab-cumpleanos" className="max-w-3xl">
+              <BirthdayCard data={data!.birthday} />
+            </div>
+          )}
         </div>
       )}
       <SmsComposer open={composing} onClose={() => setComposing(false)} />

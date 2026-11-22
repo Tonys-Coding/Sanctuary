@@ -134,14 +134,14 @@ function ExpenseList({ onEdit, initialSearch }: { onEdit: (e: Expense) => void; 
         <p className="px-5 sm:px-6 py-4 border-b border-line"><span className="text-[1.35rem] font-bold">{money(total)}</span> <span className="text-muted">{tr(`en ${rows.length} gastos`, `across ${rows.length} expenses`)}</span></p>
         <div className="overflow-x-auto relative">
           <table className="w-full">
-            <thead><tr className="border-b border-line"><Th>{tr('Fecha', 'Date')}</Th><Th>{tr('Pagado a', 'Paid to')}</Th><Th>{tr('Categoría', 'Category')}</Th><Th>{tr('Método', 'Method')}</Th><Th right>{tr('Monto', 'Amount')}</Th><Th right><span className="sr-only">{tr('Acciones', 'Actions')}</span></Th></tr></thead>
+            <thead><tr className="border-b border-line"><Th>{tr('Fecha', 'Date')}</Th><Th>{tr('Pagado a', 'Paid to')}</Th><Th className="hidden xl:table-cell">{tr('Categoría', 'Category')}</Th><Th className="hidden xl:table-cell">{tr('Método', 'Method')}</Th><Th right>{tr('Monto', 'Amount')}</Th><Th right><span className="sr-only">{tr('Acciones', 'Actions')}</span></Th></tr></thead>
             <tbody>
               {rows.map((e) => (
                 <tr key={e.id} className="border-b border-line last:border-0">
                   <Td className="whitespace-nowrap">{date(e.date)}</Td>
-                  <Td><span className="font-medium">{e.payee}</span>{e.notes && <span className="block text-muted text-[0.85rem] truncate max-w-[22rem]">{e.notes}</span>}</Td>
-                  <Td><span className="inline-flex items-center gap-2 whitespace-nowrap"><span className="size-2.5 rounded-full" style={{ background: seriesColor(e.color_slot) }} aria-hidden />{e.category}</span></Td>
-                  <Td className="text-ink-soft whitespace-nowrap">{labels.method(e.method)}{e.reference ? ` #${e.reference}` : ''}</Td>
+                  <Td><span className="font-medium">{e.payee}</span><span className="block xl:hidden text-ink-soft text-[0.85rem]"><span className="inline-block size-2 rounded-full mr-1.5 align-middle" style={{ background: seriesColor(e.color_slot) }} aria-hidden />{e.category} · {labels.method(e.method)}{e.reference ? ` #${e.reference}` : ''}</span>{e.notes && <span className="block text-muted text-[0.85rem] truncate max-w-[22rem]">{e.notes}</span>}</Td>
+                  <Td className="hidden xl:table-cell"><span className="inline-flex items-center gap-2 max-w-[15rem]"><span className="size-2.5 rounded-full shrink-0" style={{ background: seriesColor(e.color_slot) }} aria-hidden />{e.category}</span></Td>
+                  <Td className="hidden xl:table-cell text-ink-soft whitespace-nowrap">{labels.method(e.method)}{e.reference ? ` #${e.reference}` : ''}</Td>
                   <Td right className="font-semibold whitespace-nowrap">{money(e.amount)}</Td>
                   <Td right className="whitespace-nowrap !py-1">
                     {e.receipt_file && <a href={fileUrl(e.receipt_file)} target="_blank" rel="noreferrer" className="inline-grid place-items-center size-11 rounded-[11px] text-ink-soft hover:bg-raised" title={tr('Ver recibo', 'View receipt')} aria-label={tr('Ver recibo', 'View receipt')}><Paperclip size={18} /></a>}

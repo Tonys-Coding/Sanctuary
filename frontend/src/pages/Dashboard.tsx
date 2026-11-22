@@ -343,7 +343,7 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="grid gap-6 max-w-[1240px] [&>*]:min-w-0">
+    <div className="grid gap-6 [&>*]:min-w-0">
       <PageHeader title={title} subtitle={d.isCurrent ? cap(date(d.ref, 'long')) : tr(`Viendo el año ${d.label}`, `Viewing ${d.label}`)}>{picker}</PageHeader>
 
       <SetupChecklist />

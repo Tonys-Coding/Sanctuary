@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleCheck, Download, Landmark, Mail, Printer, TriangleAlert } from 'lucide-react'
+import { BookOpen, CircleCheck, Download, FileText, Landmark, ListChecks, Mail, Printer, TriangleAlert } from 'lucide-react'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
-import { Avatar, Badge, Button, Card, Empty, PageHeader, Spinner, Td, Th, cx } from '../components/ui'
+import { Avatar, Badge, Button, Card, Empty, PageHeader, Spinner, cx } from '../components/ui'
 import { EmailComposer } from '../components/EmailComposer'
 import { usePdfPreview } from '../components/PdfPreview'
+import { ViewTabs } from '../components/ViewTabs'
 
 interface Row {
   id: string; name: string; avatar_file: string | null; email: string | null; emails: string[]; has_address: boolean; deductible: number; given: number; goods: number; non_deductible: number
@@ -26,6 +27,9 @@ export default function Taxes() {
   const [year, setYear] = useState(() => { const n = new Date(); return n.getMonth() < 3 ? n.getFullYear() - 1 : n.getFullYear() })
   const [chosen, setChosen] = useState<Set<string>>(new Set())
   const [emailing, setEmailing] = useState(false)
+  const [params, setParams] = useSearchParams()
+  const view = (['constancias', 'revisar', 'saber'].includes(params.get('vista') || '') ? params.get('vista') : 'constancias') as 'constancias' | 'revisar' | 'saber'
+  const setView = (v: typeof view) => setParams(v === 'constancias' ? {} : { vista: v }, { replace: true })
   const { data, isPending } = useQuery({ queryKey: ['tax', year], queryFn: () => api.get<Tax>(`/reports/tax?year=${year}`) })
 
   const pdf = (memberId?: string, name?: string) => preview({
@@ -58,7 +62,7 @@ export default function Taxes() {
       </PageHeader>
 
       {isPending || !data ? <Spinner /> : (
-        <div className="grid gap-5">
+        <div className="grid gap-6 [&>*]:min-w-0">
           <section className="card grid sm:grid-cols-2 xl:grid-cols-4 [&>*]:p-5 sm:[&>*]:p-6 [&>*]:border-line sm:[&>*:nth-child(even)]:border-l xl:[&>*+*]:border-l [&>*+*]:border-t sm:[&>*:nth-child(2)]:border-t-0 xl:[&>*+*]:border-t-0">
             <div><p className="text-muted text-[0.93rem]">{tr('Total deducible', 'Total deductible')}</p><p className="mt-1.5 text-[1.7rem] font-bold leading-none">{money(data.totals.deductible)}</p><p className="text-muted text-[0.87rem] mt-2">{tr(`en ${data.totals.statements} constancias`, `across ${data.totals.statements} statements`)}</p></div>
             <div><p className="text-muted text-[0.93rem]">{tr('Sin nombre (no deducible)', 'No name (not deductible)')}</p><p className="mt-1.5 text-[1.7rem] font-bold leading-none">{money(data.totals.loose)}</p><p className="text-muted text-[0.87rem] mt-2">{tr('ofrendas sueltas', 'loose offerings')}</p></div>
@@ -66,7 +70,69 @@ export default function Taxes() {
             <div><p className="text-muted text-[0.93rem]">{tr('Constancias enviadas', 'Statements sent')}</p><p className="mt-1.5 text-[1.7rem] font-bold leading-none">{data.totals.emailed} <span className="text-muted text-[1.1rem] font-normal">{tr('de', 'of')} {data.totals.statements}</span></p><p className="text-muted text-[0.87rem] mt-2">{tr('por correo desde Sanctuary', 'by e-mail from Sanctuary')}</p></div>
           </section>
 
-          <div className="grid xl:grid-cols-2 gap-5">
+          {!(allReady && !data.totals.missing_address) && (
+            <button type="button" onClick={() => setView('revisar')} className="flex flex-wrap items-center gap-3 text-left rounded-[14px] border border-warn bg-warn-soft px-4 py-3 no-print">
+              <TriangleAlert size={21} className="text-warn shrink-0" aria-hidden />
+              <span className="flex-1 min-w-[14rem] font-semibold">{tr('Antes de entregar las constancias falta completar algunos datos.', 'Some details are missing before handing out the statements.')}</span>
+              <span className="text-accent-ink font-semibold underline underline-offset-4">{tr('Ver qué falta', 'See what is missing')}</span>
+            </button>
+          )}
+          <ViewTabs value={view} onChange={setView} label={tr('Secciones de impuestos', 'Tax sections')} options={[
+            { value: 'constancias', label: tr(`Constancias (${data.totals.statements})`, `Statements (${data.totals.statements})`), icon: <FileText size={20} /> },
+            { value: 'revisar', label: tr('Antes de entregar', 'Before handing out'), icon: <ListChecks size={20} /> },
+            { value: 'saber', label: tr('Lo que conviene saber', 'Good to know'), icon: <BookOpen size={20} /> },
+          ]} />
+          {view === 'constancias' && (
+            <div id="panel-constancias" role="tabpanel" aria-labelledby="tab-constancias" className="grid [&>*]:min-w-0">
+          <Card pad={false} title={tr(`Constancias de ${year}`, `${year} statements`)}
+                hint={tr('Una por cada miembro con contribuciones deducibles. Marca las casillas para enviar solo a algunos.', 'One for each member with deductible contributions. Tick boxes to send only to some.')}
+                action={<div className="flex flex-wrap gap-2.5 justify-end">
+                  <Button icon={<Printer size={18} />} onClick={() => pdf()} disabled={!data.members.length}>{tr('Descargar todas (PDF)', 'Download all (PDF)')}</Button>
+                  <Button variant="primary" icon={<Mail size={18} />} onClick={() => setEmailing(true)} disabled={!sendTo.length}>
+                    {chosen.size ? tr(`Enviar a ${sendTo.length} elegidos`, `E-mail ${sendTo.length} selected`) : tr(`Enviar a todos (${sendTo.length})`, `E-mail all (${sendTo.length})`)}
+                  </Button>
+                </div>}>
+                {data.members.length === 0 ? (
+                  <Empty icon={<Landmark size={28} />} title={tr(`No hay contribuciones deducibles en ${year}`, `No deductible contributions in ${year}`)}>{tr('Aparecerán aquí cuando registres ofrendas con nombre en fondos deducibles.', 'They will appear here once you record named offerings in deductible funds.')}</Empty>
+                ) : (
+                  <div className="mt-4 border-t border-line">
+                    <label className="flex items-center gap-3 px-5 sm:px-6 py-3 border-b border-line text-ink-soft font-semibold w-full cursor-pointer">
+                      <input type="checkbox" className="size-5 accent-[var(--accent)]" checked={chosen.size === data.members.length} onChange={() => setChosen(new Set(chosen.size === data.members.length ? [] : data.members.map((m) => m.id)))} />
+                      {tr('Elegir a todos', 'Select everyone')}
+                    </label>
+                    <ul className="divide-y divide-line">
+                      {data.members.map((m) => (
+                        <li key={m.id} className={cx('flex flex-wrap items-center gap-x-4 gap-y-2 px-5 sm:px-6 py-3.5', chosen.has(m.id) && 'bg-accent-soft/40')}>
+                          <input type="checkbox" className="size-5 accent-[var(--accent)] shrink-0" aria-label={m.name} checked={chosen.has(m.id)} onChange={() => toggle(m.id)} />
+                          <Avatar name={m.name} file={m.avatar_file} size={40} />
+                          <div className="flex-1 min-w-[12rem]">
+                            {m.household
+                              ? <p className="font-semibold">{m.name}<span className="block text-ink-soft text-[0.88rem] font-normal">{tr('Constancia conjunta', 'Joint statement')}: {m.members.join(', ')}</span></p>
+                              : <Link to={`/miembros/${m.id}`} className="font-semibold hover:underline underline-offset-4">{m.name}</Link>}
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {m.emailed_at && <Badge tone="good"><CircleCheck size={13} />{tr('Enviada', 'Sent')} {date(m.emailed_at.slice(0, 10))}</Badge>}
+                              {m.needs_acknowledgment && <Badge tone="accent">{tr('Donativo de $250+', '$250+ gift')}</Badge>}
+                              {m.quid_pro_quo && <Badge tone="accent">{tr('Recibió algo a cambio', 'Received goods')}</Badge>}
+                              {m.noncash > 0 && <Badge>{tr(`${m.noncash} en especie`, `${m.noncash} in kind`)}</Badge>}
+                              {!m.email && <Badge tone="warn">{tr('Sin correo', 'No e-mail')}</Badge>}
+                              {!m.has_address && <Badge tone="warn">{tr('Sin dirección', 'No address')}</Badge>}
+                            </div>
+                          </div>
+                          <div className="text-right ml-auto">
+                            <p className="font-bold text-[1.08rem] tabular-nums whitespace-nowrap">{money(m.deductible)}</p>
+                            <p className="text-ink-soft text-[0.86rem] whitespace-nowrap">{m.goods > 0 ? tr(`dio ${money(m.given, { whole: true })}, recibió ${money(m.goods, { whole: true })}`, `gave ${money(m.given, { whole: true })}, received ${money(m.goods, { whole: true })}`) : tr(`${num(m.gifts)} ofrendas`, `${num(m.gifts)} gifts`)}</p>
+                          </div>
+                          <Button size="sm" variant="ghost" icon={<Download size={16} />} onClick={() => pdf(m.id, m.name)}>PDF</Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+          {view === 'revisar' && (
+            <div id="panel-revisar" role="tabpanel" aria-labelledby="tab-revisar" className="max-w-3xl">
             <Card title={tr('Antes de entregar las constancias', 'Before handing out statements')} hint={allReady && !data.totals.missing_address ? tr('Todo está en orden.', 'Everything is in order.') : tr('Completa lo que falta para que las constancias sean válidas.', 'Complete what is missing so the statements are valid.')}>
               <ul className="grid gap-3">
                 {check(r!.legal_name && r!.address, tr('La constancia lleva el nombre legal y la dirección de la iglesia.', 'The statement carries the church’s legal name and address.'), tr('Falta el nombre legal o la dirección de la iglesia.', 'The church’s legal name or address is missing.'))}
@@ -77,7 +143,10 @@ export default function Taxes() {
               </ul>
               {!allReady && <Link to="/configuracion?tab=iglesia" className="inline-block mt-5 no-print"><Button>{tr('Completar datos de la iglesia', 'Complete church details')}</Button></Link>}
             </Card>
-
+            </div>
+          )}
+          {view === 'saber' && (
+            <div id="panel-saber" role="tabpanel" aria-labelledby="tab-saber" className="max-w-3xl">
             <Card title={tr('Lo que conviene saber', 'Good to know')} hint={tr('Guía general para iglesias en Estados Unidos (IRS, Publicación 1771).', 'General guidance for churches in the United States (IRS Publication 1771).')}>
               <ul className="grid gap-3 text-ink-soft [&_strong]:text-ink [&_strong]:font-semibold">
                 <li><strong>{tr('Donativos de $250 o más.', 'Gifts of $250 or more.')}</strong> {tr(`Para deducir una contribución individual de $250 o más, el miembro necesita una constancia escrita de la iglesia. Este año aplica a ${data.totals.needs_acknowledgment} personas.`, `To deduct any single contribution of $250 or more, the member needs a written acknowledgment from the church. This year that applies to ${data.totals.needs_acknowledgment} people.`)}</li>
@@ -90,52 +159,8 @@ export default function Taxes() {
               </ul>
               <p className="text-muted text-[0.87rem] mt-4">{tr('Esto es información general, no asesoría fiscal. Confirma con un contador los casos particulares.', 'This is general information, not tax advice. Check specific cases with an accountant.')}</p>
             </Card>
-          </div>
-
-          <Card pad={false} title={tr(`Constancias de ${year}`, `${year} statements`)}
-            hint={tr('Una por cada miembro con contribuciones deducibles. Marca las casillas para enviar solo a algunos.', 'One for each member with deductible contributions. Tick boxes to send only to some.')}
-            action={<div className="flex flex-wrap gap-2.5 justify-end">
-              <Button icon={<Printer size={18} />} onClick={() => pdf()} disabled={!data.members.length}>{tr('Descargar todas (PDF)', 'Download all (PDF)')}</Button>
-              <Button variant="primary" icon={<Mail size={18} />} onClick={() => setEmailing(true)} disabled={!sendTo.length}>
-                {chosen.size ? tr(`Enviar a ${sendTo.length} elegidos`, `E-mail ${sendTo.length} selected`) : tr(`Enviar a todos (${sendTo.length})`, `E-mail all (${sendTo.length})`)}
-              </Button>
-            </div>}>
-            {data.members.length === 0 ? (
-              <Empty icon={<Landmark size={28} />} title={tr(`No hay contribuciones deducibles en ${year}`, `No deductible contributions in ${year}`)}>{tr('Aparecerán aquí cuando registres ofrendas con nombre en fondos deducibles.', 'They will appear here once you record named offerings in deductible funds.')}</Empty>
-            ) : (
-              <div className="overflow-x-auto relative mt-4 border-t border-line">
-                <table className="w-full border-collapse min-w-[720px]">
-                  <thead><tr className="border-b border-line">
-                    <Th className="w-12"><input type="checkbox" className="size-5 accent-[var(--accent)]" aria-label={tr('Elegir todos', 'Select all')} checked={chosen.size === data.members.length} onChange={() => setChosen(new Set(chosen.size === data.members.length ? [] : data.members.map((m) => m.id)))} /></Th>
-                    <Th>{tr('Miembro', 'Member')}</Th><Th right>{tr('Ofrendas', 'Gifts')}</Th><Th right>{tr('Total deducible', 'Deductible total')}</Th><Th>{tr('Estado', 'Status')}</Th><Th><span className="sr-only">{tr('Constancia', 'Statement')}</span></Th>
-                  </tr></thead>
-                  <tbody className="divide-y divide-line">
-                    {data.members.map((m) => (
-                      <tr key={m.id} className={cx('hover:bg-raised/50', chosen.has(m.id) && 'bg-accent-soft/40')}>
-                        <Td><input type="checkbox" className="size-5 accent-[var(--accent)]" aria-label={m.name} checked={chosen.has(m.id)} onChange={() => toggle(m.id)} /></Td>
-                        <Td>{m.household
-                          ? <span className="flex items-center gap-3"><Avatar name={m.name} file={m.avatar_file} size={36} /><span><span className="font-medium block">{m.name}</span><span className="text-muted text-[0.85rem]">{tr('Constancia conjunta', 'Joint statement')}: {m.members.join(', ')}</span></span></span>
-                          : <Link to={`/miembros/${m.id}`} className="flex items-center gap-3 hover:underline underline-offset-4"><Avatar name={m.name} file={m.avatar_file} size={36} /><span className="font-medium">{m.name}</span></Link>}</Td>
-                        <Td right className="text-ink-soft">{num(m.gifts)}</Td>
-                        <Td right className="font-semibold whitespace-nowrap">{money(m.deductible)}{m.goods > 0 && <span className="block text-muted text-[0.8rem] font-normal">{tr(`dio ${money(m.given)}, recibió ${money(m.goods)}`, `gave ${money(m.given)}, received ${money(m.goods)}`)}</span>}</Td>
-                        <Td>
-                          <span className="flex flex-wrap gap-1.5">
-                            {m.emailed_at && <Badge tone="good"><CircleCheck size={13} />{tr('Enviada', 'Sent')} {date(m.emailed_at.slice(0, 10))}</Badge>}
-                            {m.needs_acknowledgment && <Badge tone="accent">{tr('Donativo de $250+', '$250+ gift')}</Badge>}
-                            {m.quid_pro_quo && <Badge tone="accent">{tr('Recibió algo a cambio', 'Received goods')}</Badge>}
-                            {m.noncash > 0 && <Badge>{tr(`${m.noncash} en especie`, `${m.noncash} in kind`)}</Badge>}
-                            {!m.email && <Badge tone="warn">{tr('Sin correo', 'No e-mail')}</Badge>}
-                            {!m.has_address && <Badge tone="warn">{tr('Sin dirección', 'No address')}</Badge>}
-                          </span>
-                        </Td>
-                        <Td right className="!py-1 whitespace-nowrap"><Button size="sm" variant="ghost" icon={<Download size={16} />} onClick={() => pdf(m.id, m.name)}>PDF</Button></Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+            </div>
+          )}
         </div>
       )}
 

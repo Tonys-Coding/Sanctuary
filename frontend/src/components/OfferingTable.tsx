@@ -42,13 +42,13 @@ export function OfferingTable({ rows, hideMember, hideDate, groupByDay, more }: 
   const cols = 4 + (hideMember ? 0 : 1) + (hideDate || groupByDay ? 0 : 1)
   return (
     <div className="overflow-x-auto relative">
-      <table className="w-full border-collapse min-w-[560px]">
+      <table className="w-full border-collapse min-w-[440px]">
         <thead>
           <tr className="border-b border-line">
             {!hideDate && !groupByDay && <Th>{tr('Fecha', 'Date')}</Th>}
             {!hideMember && <Th>{tr('Miembro', 'Member')}</Th>}
             <Th>{tr('Fondo', 'Fund')}</Th>
-            <Th>{tr('Método', 'Method')}</Th>
+            <Th className="hidden xl:table-cell">{tr('Método', 'Method')}</Th>
             <Th right>{tr('Monto', 'Amount')}</Th>
             <Th className="w-24 no-print"><span className="sr-only">{tr('Acciones', 'Actions')}</span></Th>
           </tr>
@@ -78,13 +78,16 @@ export function OfferingTable({ rows, hideMember, hideDate, groupByDay, more }: 
                 <Td>
                   {o.member_id ? (
                     <Link to={`/miembros/${o.member_id}`} className="flex items-center gap-3 hover:underline underline-offset-4">
-                      <Avatar name={o.member_name} file={o.member_avatar} size={34} /><span className="font-medium whitespace-nowrap">{o.member_name}</span>
+                      <Avatar name={o.member_name} file={o.member_avatar} size={34} /><span className="font-medium">{o.member_name}</span>
                     </Link>
                   ) : <span className="flex items-center gap-3 text-ink-soft whitespace-nowrap"><Avatar name="·" size={34} />{labels.loose}</span>}
                 </Td>
               )}
-              <Td><span className="inline-flex items-center gap-2"><span className="size-2.5 rounded-full shrink-0" style={{ background: seriesColor(o.fund_color) }} aria-hidden />{o.fund_name}</span></Td>
-              <Td className="text-ink-soft whitespace-nowrap">{labels.method(o.method)}{o.check_number ? ` #${o.check_number}` : ''}</Td>
+              <Td>
+                <span className="inline-flex items-center gap-2"><span className="size-2.5 rounded-full shrink-0" style={{ background: seriesColor(o.fund_color) }} aria-hidden />{o.fund_name}</span>
+                <span className="block xl:hidden text-ink-soft text-[0.86rem] pl-[18px]">{labels.method(o.method)}{o.check_number ? ` #${o.check_number}` : ''}</span>
+              </Td>
+              <Td className="hidden xl:table-cell text-ink-soft whitespace-nowrap">{labels.method(o.method)}{o.check_number ? ` #${o.check_number}` : ''}</Td>
               <Td right className="font-semibold whitespace-nowrap">{money(o.amount)}</Td>
               <Td right className="no-print whitespace-nowrap !py-1">
                 {o.batch_status === 'closed'

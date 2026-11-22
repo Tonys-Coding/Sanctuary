@@ -43,7 +43,7 @@ function Item({ to, icon, children, badge, end }: { to: string; icon: ReactNode;
     <NavLink
       to={to} end={end}
       className={({ isActive }) => cx(
-        'flex items-center gap-3 min-h-12 px-3.5 rounded-[11px] transition-colors duration-150',
+        'flex items-center gap-3 min-h-12 [@media(max-height:860px)]:min-h-11 px-3.5 rounded-[11px] transition-colors duration-150',
         isActive ? 'bg-raised text-ink font-semibold' : 'text-ink-soft hover:bg-raised/60 hover:text-ink',
       )}
     >
@@ -80,7 +80,7 @@ export default function Layout() {
   const first = user.full_name.split(' ')[0]
 
   const nav = (
-    <nav className="flex flex-col gap-6 h-full" aria-label={tr('Menú principal', 'Main menu')}>
+    <nav className="flex flex-col gap-6 [@media(max-height:860px)]:gap-4 min-h-full" aria-label={tr('Menú principal', 'Main menu')}>
       <div className="flex items-center gap-3 px-2 pt-1">
         {org.logo_file ? <img src={fileUrl(org.logo_file)} alt="" className="size-11 object-contain" /> : <Logo size={44} />}
         <div className="min-w-0">
@@ -88,7 +88,7 @@ export default function Layout() {
           <p className="text-muted text-[0.82rem] truncate mt-1" title={org.name}>{org.name}</p>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto grid content-start gap-6 -mx-1 px-1">
+      <div className="flex-1 grid content-start gap-6 [@media(max-height:860px)]:gap-3.5 -mx-1 px-1">
         <Group label={tr('Principal', 'Main')}>
           <Item to="/" end icon={<LayoutDashboard size={21} />}>{tr('Inicio', 'Home')}</Item>
           <Item to="/ofrendas" icon={<HandCoins size={21} />}>{tr('Ofrendas', 'Offerings')}</Item>
@@ -136,12 +136,12 @@ export default function Layout() {
       <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:z-50 focus:top-3 focus:left-3 focus:bg-accent focus:text-on-accent focus:px-4 focus:py-2 focus:rounded-lg">
         {tr('Saltar al contenido', 'Skip to content')}
       </a>
-      <aside className="hidden lg:block fixed inset-y-0 left-0 w-[17rem] border-r border-line bg-surface p-4 no-print">{nav}</aside>
+      <aside className="hidden lg:block fixed inset-y-0 left-0 w-[17rem] border-r border-line bg-surface p-4 overflow-y-auto overscroll-contain no-print">{nav}</aside>
 
       {menu && (
         <div className="lg:hidden fixed inset-0 z-40 no-print">
           <div className="absolute inset-0 bg-[oklch(0.15_0.01_60/0.55)]" onClick={() => setMenu(false)} />
-          <aside className="rise absolute inset-y-0 left-0 w-[min(300px,88vw)] bg-surface border-r border-line p-4">
+          <aside className="rise absolute inset-y-0 left-0 w-[min(300px,88vw)] bg-surface border-r border-line p-4 overflow-y-auto overscroll-contain">
             <IconButton label={tr('Cerrar menú', 'Close menu')} onClick={() => setMenu(false)} className="absolute right-2 top-3"><X size={22} /></IconButton>
             {nav}
           </aside>
@@ -151,10 +151,10 @@ export default function Layout() {
       <header className="sticky top-0 z-20 bg-bg/95 backdrop-blur-sm border-b border-line no-print">
         <div className="flex items-center gap-2 sm:gap-3 h-[4.2rem] px-4 sm:px-6 2xl:px-10">
           <IconButton label={tr('Abrir menú', 'Open menu')} onClick={() => setMenu(true)} className="lg:hidden -ml-2"><Menu size={24} /></IconButton>
-          <p className="hidden sm:block text-[1.05rem] truncate shrink-0">
+          <p className="hidden xl:block text-[1.05rem] truncate shrink-0">
             {tr('Hola', 'Hello')}, <span className="font-semibold">{first}</span>
           </p>
-          <div className="flex-1 hidden md:flex justify-center px-4">
+          <div className="flex-1 min-w-0 hidden md:flex justify-center px-2 xl:px-4">
             <div className="w-full max-w-md"><GlobalSearch /></div>
           </div>
           <div className="flex-1 md:hidden" />
@@ -163,8 +163,8 @@ export default function Layout() {
           <LangToggle />
           <ThemeToggle />
           <Button variant="primary" icon={<Plus size={20} aria-hidden />} onClick={() => openOffering()}>
-            <span className="hidden sm:inline">{tr('Registrar ofrenda', 'Record offering')}</span>
-            <span className="sm:hidden">{tr('Ofrenda', 'Offering')}</span>
+            <span className="hidden xl:inline">{tr('Registrar ofrenda', 'Record offering')}</span>
+            <span className="xl:hidden">{tr('Ofrenda', 'Offering')}</span>
           </Button>
         </div>
       </header>
@@ -173,7 +173,7 @@ export default function Layout() {
       <IdleGuard />
       <OfflineBanner />
       <main id="contenido" className="px-4 sm:px-6 2xl:px-10 py-6 sm:py-8">
-        <Suspense fallback={<Spinner />}><Outlet /></Suspense>
+        <div className="max-w-[1560px] mx-auto"><Suspense fallback={<Spinner />}><Outlet /></Suspense></div>
       </main>
     </div>
   )

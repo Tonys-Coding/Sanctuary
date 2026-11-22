@@ -61,9 +61,9 @@ export function Field({ label, hint, error, optional, children, className }: { l
   const { tr } = useApp()
   return (
     <div className={className}>
-      <label htmlFor={id} className="flex items-baseline gap-2 mb-1.5 font-semibold text-[0.95rem]">
+      <label htmlFor={id} className="block mb-1.5 font-semibold text-[0.95rem]">
         {label}
-        {optional && <span className="font-normal text-muted text-[0.85rem]">{tr('opcional', 'optional')}</span>}
+        {optional && <span className="font-normal text-muted text-[0.85rem] ml-2 whitespace-nowrap">{tr('opcional', 'optional')}</span>}
       </label>
       {children(id)}
       {error ? (
