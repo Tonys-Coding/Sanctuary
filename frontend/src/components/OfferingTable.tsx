@@ -41,14 +41,14 @@ export function OfferingTable({ rows, hideMember, hideDate, groupByDay, more }: 
 
   const cols = 4 + (hideMember ? 0 : 1) + (hideDate || groupByDay ? 0 : 1)
   return (
-    <div className="overflow-x-auto relative">
+    <div className="@container overflow-x-auto relative">
       <table className="w-full border-collapse min-w-[440px]">
         <thead>
           <tr className="border-b border-line">
             {!hideDate && !groupByDay && <Th>{tr('Fecha', 'Date')}</Th>}
             {!hideMember && <Th>{tr('Miembro', 'Member')}</Th>}
             <Th>{tr('Fondo', 'Fund')}</Th>
-            <Th className="hidden xl:table-cell">{tr('Método', 'Method')}</Th>
+            <Th className="hidden @3xl:table-cell">{tr('Método', 'Method')}</Th>
             <Th right>{tr('Monto', 'Amount')}</Th>
             <Th className="w-24 no-print"><span className="sr-only">{tr('Acciones', 'Actions')}</span></Th>
           </tr>
@@ -85,13 +85,17 @@ export function OfferingTable({ rows, hideMember, hideDate, groupByDay, more }: 
               )}
               <Td>
                 <span className="inline-flex items-center gap-2"><span className="size-2.5 rounded-full shrink-0" style={{ background: seriesColor(o.fund_color) }} aria-hidden />{o.fund_name}</span>
-                <span className="block xl:hidden text-ink-soft text-[0.86rem] pl-[18px]">{labels.method(o.method)}{o.check_number ? ` #${o.check_number}` : ''}</span>
+                <span className="block @3xl:hidden text-ink-soft text-[0.86rem] pl-[18px]">{labels.method(o.method)}{o.check_number ? ` #${o.check_number}` : ''}</span>
               </Td>
-              <Td className="hidden xl:table-cell text-ink-soft whitespace-nowrap">{labels.method(o.method)}{o.check_number ? ` #${o.check_number}` : ''}</Td>
+              <Td className="hidden @3xl:table-cell text-ink-soft whitespace-nowrap">{labels.method(o.method)}{o.check_number ? ` #${o.check_number}` : ''}</Td>
               <Td right className="font-semibold whitespace-nowrap">{money(o.amount)}</Td>
               <Td right className="no-print whitespace-nowrap !py-1">
                 {o.batch_status === 'closed'
-                  ? <span className="inline-grid place-items-center size-11 text-muted" title={tr('Conteo cerrado: reábrelo para cambiar esta ofrenda', 'Closed count: reopen it to change this offering')}><Lock size={17} aria-label={tr('Conteo cerrado', 'Closed count')} /></span>
+                  ? <Link to={`/conteos/${o.batch_id}?reabrir=1`} className="inline-grid place-items-center size-11 rounded-[11px] text-muted hover:bg-raised hover:text-ink transition-colors"
+                      title={tr(`Está en un conteo cerrado («${o.batch_name || ''}»). Pulsa para abrir el conteo y reabrirlo.`, `It is in a closed count (“${o.batch_name || ''}”). Click to open the count and reopen it.`)}
+                      aria-label={tr(`Conteo cerrado: abrir «${o.batch_name || ''}» para reabrirlo y editar`, `Closed count: open “${o.batch_name || ''}” to reopen and edit`)}>
+                      <Lock size={17} aria-hidden />
+                    </Link>
                   : <>
                     <IconButton label={tr('Editar', 'Edit')} onClick={() => edit({ offering: o })}><Pencil size={18} /></IconButton>
                     <IconButton label={tr('Eliminar', 'Delete')} onClick={() => remove(o)}><Trash2 size={18} /></IconButton>

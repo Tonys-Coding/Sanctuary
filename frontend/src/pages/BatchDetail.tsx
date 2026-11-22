@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Camera, CircleCheck, Landmark, Lock, LockOpen, Plus, Printer, Sparkles, Trash2, TriangleAlert } from 'lucide-react'
 import { api } from '../lib/api'
@@ -53,6 +53,14 @@ export default function BatchDetail() {
   const withRefs = (rows: Parsed[]) => rows.map((r) => ({ ...r, ref: `ai:${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}` }))
   const [reopening, setReopening] = useState(false)
   const [reason, setReason] = useState('')
+  // Arriving from a locked offering (…?reabrir=1): offer to reopen straight away when that is allowed.
+  const [params, setParams] = useSearchParams()
+  const askReopen = params.get('reabrir') === '1'
+  useEffect(() => {
+    if (!askReopen || !batch) return
+    if (batch.status === 'closed' && (!batch.deposit_status || batch.deposit_status === 'pending')) setReopening(true)
+    setParams({}, { replace: true })
+  }, [askReopen, batch, setParams])
 
   if (isPending) return <Spinner />
   if (error || !batch) return <Empty title={tr('No encontramos este conteo', 'We could not find this count')} action={<Link to="/conteos"><Button>{tr('Volver a conteos', 'Back to counts')}</Button></Link>} />
@@ -173,7 +181,7 @@ export default function BatchDetail() {
         <p className="flex items-start gap-2.5 rounded-[14px] bg-raised px-4 py-3 text-ink-soft no-print">
           <Lock size={19} className="mt-0.5 shrink-0" aria-hidden />
           {deposited
-            ? tr('Este conteo está cerrado y su dinero ya se depositó. Ya no se puede cambiar.', 'This count is closed and its money is deposited. It can no longer be changed.')
+            ? <span>{tr('Este conteo está cerrado y su dinero ya se depositó, así que no se puede reabrir. Para corregir una ofrenda, registra una ofrenda de ajuste con la fecha de hoy y una nota. Si el depósito se marcó por error, deshazlo primero en ', 'This count is closed and its money is deposited, so it cannot be reopened. To correct an offering, record an adjusting offering dated today with a note. If the deposit was marked by mistake, undo it first in ')}<Link to={`/depositos?d=${batch.deposit_id}`} className="text-accent-ink font-semibold underline underline-offset-4">{tr('Depósitos', 'Deposits')}</Link>.</span>
             : tr(`Este conteo se cerró${batch.closed_at ? ` el ${date(batch.closed_at.slice(0, 10))}` : ''} y está protegido contra cambios. Si hay que corregir algo, usa «Reabrir conteo» y explica el motivo.`, `This count was closed${batch.closed_at ? ` on ${date(batch.closed_at.slice(0, 10))}` : ''} and is protected from changes. To correct something, use “Reopen count” and explain why.`)}
         </p>
       )}

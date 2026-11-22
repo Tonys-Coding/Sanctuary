@@ -6,9 +6,9 @@ import './index.css'
 import App from './App'
 import { AppProvider } from './lib/app'
 import { FeedbackProvider } from './components/ui'
-import { applyTextSize, savedTextSize } from './components/TextSize'
+import { applyTextSize } from './components/TextSize'
 
-applyTextSize(savedTextSize())
+applyTextSize()
 
 // In production, keep the app available offline (see public/sw.js). Not in development, where it would serve stale code.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

@@ -234,6 +234,7 @@ export function AvatarPicker({ name, file, onPick, busy, size = 104 }: { name?: 
 
 export function Modal({ open, onClose, title, children, footer, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; wide?: boolean | 'xl' }) {
   const ref = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
   const { tr } = useApp()
   useEffect(() => {
     const d = ref.current
@@ -244,14 +245,14 @@ export function Modal({ open, onClose, title, children, footer, wide }: { open: 
   if (!open) return null
   return (
     <dialog
-      ref={ref}
+      ref={ref} aria-labelledby={titleId}
       onCancel={(e) => { e.preventDefault(); onClose() }}
       onMouseDown={(e) => { if (e.target === ref.current) onClose() }}
       className={cx('rise m-auto p-0 w-[calc(100%-24px)] bg-surface border border-line rounded-[18px] shadow-card max-h-[calc(100dvh-24px)] overflow-hidden', wide === 'xl' ? 'max-w-6xl' : wide ? 'max-w-3xl' : 'max-w-xl')}
     >
       <div className="flex flex-col max-h-[calc(100dvh-24px)]">
         <div className="flex items-center justify-between gap-4 pl-6 pr-3 py-3 border-b border-line">
-          <h2 className="font-display text-[1.3rem]">{title}</h2>
+          <h2 id={titleId} className="font-display text-[1.3rem]">{title}</h2>
           <IconButton label={tr('Cerrar', 'Close')} onClick={onClose}><X size={22} /></IconButton>
         </div>
         <div className="p-6 overflow-y-auto">{children}</div>
